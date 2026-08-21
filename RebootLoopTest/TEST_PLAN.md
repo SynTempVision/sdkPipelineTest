@@ -12,7 +12,7 @@ Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the s
       - uses the sdk 4.1 version
       - started via crontab job that run system_init.sh at boot
       - rtsp-seek-server.sh a script that was created to restart on crash
-      - pipelien writes frames to a RAMDISK file (image.pgm),
+      - pipeline writes frames to a RAMDISK file (image.pgm),
       - image/pgm served separately by imgserv on port 2105 to SV
    - NEW
       - uses the sdk 4.4 version
@@ -42,11 +42,11 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
    - Is the device reachable via ssh
    - Seek USB enumeration status (grep the kernel log and command that reads what devices are connected to the USB hub)
    - Network behavior: ethernet link UP/DOWN count (grep the kernal log)
-   - CPU load / CPU Temp
+   - CPU load / CPU Temp / CPU Throttling
    - kernal log snapshot that is replaced everytime it is updated so im not storing exxcessive amounts of data.
  
 - New Pipeline:
-   - Number of usb error warnings
+   - Number of USB error warnings
    - Number of systemd resets on the pipeline
    - If calibration data loaded on pipeline start
 
@@ -87,17 +87,16 @@ Two stress conditions, each run on one old-pipeline unit and one new-pipeline un
 
 ### Instruments that are logged on a N cycle time
 - Both pipelines:
-   - Is the device reachable via ssh
+   - Is the device reachable via SSH
    - Seek USB enumeration status (grep the kernel log and command that reads what devices are connected to the USB hub)
-   - Network behavior: ethernet link UP/DOWN count (grep the kernal log)
+   - Network behavior: ethernet link UP/DOWN count (grep the kernel log)
    - CPU load / CPU Temp
-   - kernal log snapshot that is replaced everytime it is updated so im not storing exxcessive amounts of data.
+   - kernel log snapshot that is replaced every time it is updated so I'm not storing excessive amounts of data.
  
 - New Pipeline:
-   - Number of usb error warnings
+   - Number of USB error warnings
    - Number of systemd resets on the pipeline
    - If calibration data loaded on pipeline start
 
 - Old pipeline:
-   - image.pgm health - Are the bytes valid and when the last write was ?
-   - 
+   - image.pgm health - Are the bytes valid and when the last write was?
