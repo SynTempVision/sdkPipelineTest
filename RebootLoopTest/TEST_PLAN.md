@@ -53,19 +53,19 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 - Old pipeline:
    - image.pgm health - Are the bytes valid and when the last write was ? 
 
-## Things I am looking for:
+### Things I am looking for:
 1. Does it self-recover from USB errors the old pipeline can't?
 2. Does the old/new pipeline fail, what is causing the failure and how can that be eliminated ?
 3. Any difference in Seek enumeration failures between pipelines?
 4. Any other faults/bugs, in either pipeline
 
-Prediction: 
+###Prediction: 
 - if the new pipeline is better, it should show fewer/delayed Seek enumeration failures.
 
-Test Succession Criteria:
+###Test Succession Criteria:
 - The new pipeline has no seek enumeration or at least less than the old pipeline
 
-Next Steps:
+###Next Steps:
    - Get test planned reviewed and Approved
    - Build a website that displays the static information about each test device and the current status of test device during a test run.
 
