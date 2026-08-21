@@ -678,6 +678,7 @@ evidence for what the kernel saw, not just the fact that enumeration failed:</p>
     pipeline_types = Counter(v for v in ptype_col if v)
     ptype_flag = ""
     ptype_flag_class = "note"
+    old_idxs = []  # populated below only when there's a real mix to analyze
     if len(pipeline_types) <= 1:
         ptype_str = next(iter(pipeline_types), "n/a")
     else:
@@ -738,10 +739,16 @@ evidence for what the kernel saw, not just the fact that enumeration failed:</p>
     # Exclude blip rows (no real data - checkpoint unreachable, or reachable
     # but the check's own output came back blank anyway, see make_states
     # above) - those aren't a real calibration state, same class of bug
-    # fixed for Seek Enumeration/image.pgm above.
+    # fixed for Seek Enumeration/image.pgm above. Also exclude cycles where
+    # Pipeline Type itself was a misread (not a real old-pipeline reading,
+    # see the ptype block above) - "n/a (old pipeline)" on those rows is
+    # just a side effect of the same misread, not a real calibration state.
+    ptype_misread_idxs = set(old_idxs) if ptype_flag_class != "warn" else set()
     calib_counts = Counter()
     calib_blips = 0
-    for v, reachable in zip(col("Calibration"), reachable_flags):
+    for i, (v, reachable) in enumerate(zip(col("Calibration"), reachable_flags)):
+        if i in ptype_misread_idxs:
+            continue
         if not reachable or v in (None, ""):
             calib_blips += 1
             continue
