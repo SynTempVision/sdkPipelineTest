@@ -7,19 +7,16 @@ To find a solution for the cameras at LB and HyCO4 that have been experiencing I
 
 
 ## Goal: 
-Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the same, or worse than the old pipeline (`rtsp-seek-server`). And furthermore if none of the pipelines can solve the seek enumeration problem can the new one at least have fewer and or delay the seek enumeration hardware failure. Solve / Mitigate the video pipeline failures. Side Note: i am not sure that either of the pipelines can stop the Seek camera from enumeration failure - This might be a Seek issue.
+Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the same, or worse than the old pipeline (`rtsp-seek-server`). And furthermore if none of the pipelines can solve the seek enumeration problem can the new one at least have fewer and or delay the seek enumeration hardware failure. Solve / Mitigate the video pipeline failures. 
+Side Note: I am not sure that either of the pipelines can stop the Seek camera from enumeration failure - This might be a Seek issue.
 
 ### Differences between the Old and New Pipeline:
    - OLD Pipeline
-      - created by KDK uses the sdk 4.1 version
+      - created by KDK
+      - uses the sdk 4.1 version
       - started via crontab job that run system_init.sh at boot
-      - rtsp-seek-server.sh a script that was created to restart on crash 
-      - pipeline writes frames to a RAMDISK file (image.pgm),
-      - image/pgm served separately by imgserv on port 2105 to SV
-      - rtsp-seek-server -c (no runtime pipeline string like new - old pipeline's chain is compiled into the binary, not passed as a CLI argument)
-
 ```
-appsrc name=app0 format=time ! timecodestamper ! normfilter ! tee name=tp
+appsrc name=app0 format=time ! timecodestamper ! normfilter ! tee name=tp 
   tp. ! queue ! rtpgstpay name=pay0
   tp. ! queue ! multifilesink max-files=10 location="/usr/local/bin/camera/ramdisk/image%d"
 ```
@@ -32,14 +29,11 @@ Element: timecodestamper
 Role: Adds precise timestamps to each buffer for synchronization
 ────────────────────────────────────────
 Element: normfilter
-Role: Custom normalization filter — same position in the chain as new
-pipeline's "calibration" element (both correct the raw frame right after
-capture), but a different implementation/name.
+Role: Custom normalization filter 
 ────────────────────────────────────────
 Element: tee (name=tp)
 Role: Splits the stream into two parallel branches — RTP streaming and
-file save. GStreamer-native fan-out; new pipeline has no equivalent split,
-it's a single linear chain ending in one custom sink instead.
+file save. GStreamer-native fan-out.
 ────────────────────────────────────────
 Element: queue ! rtpgstpay (name=pay0)  [Branch 1]
 Role: Payloads the stream for RTP streaming (needs an external sink like
@@ -49,9 +43,10 @@ Element: queue ! multifilesink (max-files=10, location="image%d")  [Branch 2]
 Role: Saves frames to disk as a rotating buffer of up to 10 files
 ```
 
-- rtsp-seek-server.sh summary: launched once at boot (cron -> system_init.sh -> `&`), no supervisor watches the wrapper itself. Its `while` loop runs `usbreset` + relaunches every time the binary exits. Gaps: doesn't catch a hang (binary frozen, not exited), and can't self-heal if the wrapper process itself dies. Both measurable via `pgrep -f rtsp-seek-server.sh` (wrapper alive?) + process/CPU%/image.pgm-freshness (crashed vs hung vs livelocked vs healthy).
+- rtsp-seek-server.sh: launched once at boot in crontab. Its `while` loop runs `usbreset` + relaunches every time the binary exits. Gaps: doesn't catch a hang (binary frozen, not exited), and can't self-heal if the wrapper process itself dies. Both measurable via `pgrep -f rtsp-seek-server.sh` (wrapper alive?) + process/CPU%/image.pgm-freshness (crashed vs hung vs livelocked vs healthy).
 
    - NEW pipeline
+      - written by sophia and claude
       - uses the sdk 4.4 version
       - systemd service (seekcamera-gstreamer.service)
       - Has an internal watchdog: absorbs USB timeout errors as warnings and keeps running; only exits and restarts if image frames stop being produced. 
@@ -72,8 +67,7 @@ Element: pgmencode
 Role: Encodes the calibrated frame into PGM format
 ────────────────────────────────────────
 Element: syntempsink
-Role: Custom sink — writes/serves the final output (this is presumably
-what feeds RTSP + wherever else it goes)
+Role: Custom sink — writes/serves the final output to SynTemp Vision on port 2105
 ```
      
 
@@ -93,7 +87,8 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
     - PoE Splitter (5V 3.5A) because I have qty 4 of each.
     - STEAMO Model:GPOE208 Gigabit PoE Switch
     - The same ethernet cables
-- All units are burned with the same baseline OS image. 
+- All units are burned with the same baseline OS image
+    - changes are that TYPE B has the new pipeline ( binaries and services newSDK ) the old pipeline is there but not active
 
 ### Instruments that are logged on a N cycle time for N amount of days
 - Both pipelines:
@@ -121,7 +116,7 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 - if the new pipeline is better, it should show fewer/delayed Seek enumeration failures.
 
 ### Test Succession Criteria:
-- The new pipeline has no seek enumeration or at least less than the old pipeline
+- The new pipeline has no lost seek enumeration or at least less than the old pipeline
 
 ### Next Steps:
    - Get test planned reviewed and Approved
