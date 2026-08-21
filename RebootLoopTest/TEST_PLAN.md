@@ -1,16 +1,14 @@
-# New vs. Old Pipeline Durability Test Plan
+# New vs. Old Pipeline Test Plan
 
-## Hypothesis
+## Goal
+Determine whether the new SDK pipeline (`seekcamera-gstreamer`, currently v3) is better, the same, or worse than the old pipeline (`rtsp-seek-server`).
 
-The new SDK pipeline (`seekcamera-gstreamer`, currently v3) is **more resilient** than the
-old pipeline (`rtsp-seek-server`) under reboot and restart stress - specifically:
-Seek USB enumeration reliability, ability to self-recover from transient USB errors without
-a full process restart, and overall stability (CPU load, network behavior) under repeated
-stress.
+### Things I am looking for:
+- Seek USB enumeration reliability
+- Ability to self-recover from transient USB errors without
+- Overall stability (CPU load, network behavior)
+- Faults / bugs in either system
 
-This is directly testable: if true, new-pipeline units should show fewer/shorter Seek
-enumeration failures, fewer restart events per unit of uptime, and measurable
-self-recovery events that the old pipeline has no equivalent for.
 
 ## Test Design
 
