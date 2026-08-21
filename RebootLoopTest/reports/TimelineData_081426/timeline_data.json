@@ -1,0 +1,928 @@
+{
+  "PT1": [
+    {
+      "min": 0.0,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 1
+    },
+    {
+      "min": 2.05,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 2
+    },
+    {
+      "min": 4.1,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 3
+    },
+    {
+      "min": 6.13,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 4
+    },
+    {
+      "min": 8.18,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 5
+    },
+    {
+      "min": 10.23,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 6
+    },
+    {
+      "min": 12.27,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 7
+    },
+    {
+      "min": 14.32,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 8
+    },
+    {
+      "min": 16.37,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 9
+    },
+    {
+      "min": 18.42,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 10
+    },
+    {
+      "min": 20.45,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 11
+    },
+    {
+      "min": 22.5,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 12
+    },
+    {
+      "min": 24.55,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 13
+    },
+    {
+      "min": 26.6,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 14
+    },
+    {
+      "min": 28.63,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 15
+    },
+    {
+      "min": 30.68,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 16
+    },
+    {
+      "min": 32.73,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 17
+    },
+    {
+      "min": 34.78,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 18
+    },
+    {
+      "min": 36.82,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 19
+    },
+    {
+      "min": 38.87,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 20
+    },
+    {
+      "min": 40.92,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 21
+    },
+    {
+      "min": 42.97,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 22
+    },
+    {
+      "min": 45.0,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 23
+    },
+    {
+      "min": 47.05,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 24
+    },
+    {
+      "min": 49.1,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 25
+    },
+    {
+      "min": 51.15,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 26
+    },
+    {
+      "min": 53.2,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 27
+    },
+    {
+      "min": 55.23,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 28
+    },
+    {
+      "min": 57.28,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 29
+    },
+    {
+      "min": 59.33,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 30
+    }
+  ],
+  "PTRamOS1": [
+    {
+      "min": 0.0,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 1
+    },
+    {
+      "min": 2.05,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 2
+    },
+    {
+      "min": 4.1,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 3
+    },
+    {
+      "min": 6.15,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 4
+    },
+    {
+      "min": 8.2,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 5
+    },
+    {
+      "min": 10.23,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 6
+    },
+    {
+      "min": 12.28,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 7
+    },
+    {
+      "min": 14.33,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 8
+    },
+    {
+      "min": 16.38,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 9
+    },
+    {
+      "min": 18.42,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 10
+    },
+    {
+      "min": 20.47,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 11
+    },
+    {
+      "min": 22.52,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 12
+    },
+    {
+      "min": 24.57,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 13
+    },
+    {
+      "min": 26.62,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 14
+    },
+    {
+      "min": 28.65,
+      "usb_errors": 0,
+      "event": "empty",
+      "cycle": 15
+    },
+    {
+      "min": 30.7,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 16
+    },
+    {
+      "min": 32.75,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 17
+    },
+    {
+      "min": 34.8,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 18
+    },
+    {
+      "min": 36.85,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 19
+    },
+    {
+      "min": 38.88,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 20
+    },
+    {
+      "min": 41.0,
+      "usb_errors": null,
+      "event": "unreachable",
+      "cycle": 21
+    },
+    {
+      "min": 43.05,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 22
+    },
+    {
+      "min": 45.1,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 23
+    },
+    {
+      "min": 47.15,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 24
+    },
+    {
+      "min": 49.18,
+      "usb_errors": 0,
+      "event": "empty",
+      "cycle": 25
+    },
+    {
+      "min": 51.23,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 26
+    },
+    {
+      "min": 53.28,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 27
+    },
+    {
+      "min": 55.33,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 28
+    },
+    {
+      "min": 57.38,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 29
+    },
+    {
+      "min": 59.42,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 30
+    }
+  ],
+  "PT2": [
+    {
+      "min": 0.0,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 1
+    },
+    {
+      "min": 1.3,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 2
+    },
+    {
+      "min": 2.58,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 3
+    },
+    {
+      "min": 3.88,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 4
+    },
+    {
+      "min": 5.18,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 5
+    },
+    {
+      "min": 6.47,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 6
+    },
+    {
+      "min": 7.77,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 7
+    },
+    {
+      "min": 9.07,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 8
+    },
+    {
+      "min": 10.37,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 9
+    },
+    {
+      "min": 11.65,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 10
+    },
+    {
+      "min": 12.95,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 11
+    },
+    {
+      "min": 15.53,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 13
+    },
+    {
+      "min": 16.83,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 14
+    },
+    {
+      "min": 18.12,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 15
+    },
+    {
+      "min": 19.42,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 16
+    },
+    {
+      "min": 20.72,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 17
+    },
+    {
+      "min": 22.02,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 18
+    },
+    {
+      "min": 23.3,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 19
+    },
+    {
+      "min": 24.6,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 20
+    },
+    {
+      "min": 25.9,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 21
+    },
+    {
+      "min": 27.18,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 22
+    },
+    {
+      "min": 28.48,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 23
+    },
+    {
+      "min": 29.78,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 24
+    },
+    {
+      "min": 31.07,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 25
+    },
+    {
+      "min": 32.37,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 26
+    },
+    {
+      "min": 33.67,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 27
+    },
+    {
+      "min": 34.95,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 28
+    },
+    {
+      "min": 36.25,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 29
+    },
+    {
+      "min": 37.55,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 30
+    },
+    {
+      "min": 38.85,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 31
+    },
+    {
+      "min": 40.13,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 32
+    },
+    {
+      "min": 41.43,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 33
+    },
+    {
+      "min": 42.73,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 34
+    },
+    {
+      "min": 44.02,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 35
+    },
+    {
+      "min": 45.32,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 36
+    },
+    {
+      "min": 46.62,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 37
+    },
+    {
+      "min": 47.9,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 38
+    },
+    {
+      "min": 49.2,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 39
+    },
+    {
+      "min": 50.5,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 40
+    },
+    {
+      "min": 51.8,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 41
+    },
+    {
+      "min": 53.08,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 42
+    },
+    {
+      "min": 54.38,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 43
+    },
+    {
+      "min": 55.68,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 44
+    },
+    {
+      "min": 56.97,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 45
+    },
+    {
+      "min": 58.27,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 46
+    },
+    {
+      "min": 59.57,
+      "usb_errors": 1,
+      "event": null,
+      "cycle": 47
+    }
+  ],
+  "PTRamOS2": [
+    {
+      "min": 0.0,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 1
+    },
+    {
+      "min": 1.3,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 2
+    },
+    {
+      "min": 2.6,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 3
+    },
+    {
+      "min": 3.88,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 4
+    },
+    {
+      "min": 5.18,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 5
+    },
+    {
+      "min": 6.48,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 6
+    },
+    {
+      "min": 7.77,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 7
+    },
+    {
+      "min": 9.07,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 8
+    },
+    {
+      "min": 10.37,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 9
+    },
+    {
+      "min": 11.65,
+      "usb_errors": 0,
+      "event": "stale",
+      "cycle": 10
+    },
+    {
+      "min": 12.95,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 11
+    },
+    {
+      "min": 14.25,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 12
+    },
+    {
+      "min": 15.53,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 13
+    },
+    {
+      "min": 16.83,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 14
+    },
+    {
+      "min": 18.13,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 15
+    },
+    {
+      "min": 19.43,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 16
+    },
+    {
+      "min": 20.72,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 17
+    },
+    {
+      "min": 22.02,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 18
+    },
+    {
+      "min": 23.32,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 19
+    },
+    {
+      "min": 24.6,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 20
+    },
+    {
+      "min": 25.9,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 21
+    },
+    {
+      "min": 27.2,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 22
+    },
+    {
+      "min": 28.48,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 23
+    },
+    {
+      "min": 29.78,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 24
+    },
+    {
+      "min": 31.08,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 25
+    },
+    {
+      "min": 32.38,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 26
+    },
+    {
+      "min": 33.67,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 27
+    },
+    {
+      "min": 34.97,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 28
+    },
+    {
+      "min": 36.27,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 29
+    },
+    {
+      "min": 37.55,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 30
+    },
+    {
+      "min": 38.85,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 31
+    },
+    {
+      "min": 40.15,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 32
+    },
+    {
+      "min": 41.43,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 33
+    },
+    {
+      "min": 42.73,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 34
+    },
+    {
+      "min": 44.03,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 35
+    },
+    {
+      "min": 45.33,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 36
+    },
+    {
+      "min": 46.62,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 37
+    },
+    {
+      "min": 47.92,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 38
+    },
+    {
+      "min": 49.22,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 39
+    },
+    {
+      "min": 50.52,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 40
+    },
+    {
+      "min": 51.8,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 41
+    },
+    {
+      "min": 53.1,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 42
+    },
+    {
+      "min": 54.4,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 43
+    },
+    {
+      "min": 55.68,
+      "usb_errors": 0,
+      "event": null,
+      "cycle": 44
+    },
+    {
+      "min": 56.98,
+      "usb_errors": 2,
+      "event": null,
+      "cycle": 45
+    },
+    {
+      "min": 58.28,
+      "usb_errors": 2,
+      "event": null,
+      "cycle": 46
+    },
+    {
+      "min": 59.57,
+      "usb_errors": 2,
+      "event": null,
+      "cycle": 47
+    }
+  ]
+}

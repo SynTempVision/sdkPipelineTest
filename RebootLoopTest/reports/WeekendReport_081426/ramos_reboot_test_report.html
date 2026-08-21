@@ -1,0 +1,1758 @@
+<title>PT vs RAM OS Reboot Resilience</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f2f4f7;
+    --surface: #ffffff;
+    --surface-2: #eef1f5;
+    --border: #d8dee6;
+    --text: #1a2029;
+    --text-muted: #5c6675;
+    --accent: #d97a1f;
+    --danger: #d6334a;
+    --warning: #b5790a;
+    --purple: #7c5cbf;
+    --green: #1f9d5e;
+    --blue: #2b7de0;
+    --grid-line: #00000012;
+    --shadow: 0 1px 2px #1a20291a, 0 8px 24px -12px #1a202926;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1217;
+      --surface: #161b22;
+      --surface-2: #1e2530;
+      --border: #2a323d;
+      --text: #e8ecf1;
+      --text-muted: #8996a8;
+      --accent: #ff9a3c;
+      --danger: #ff6b6b;
+      --warning: #ffcf5c;
+      --purple: #b39bef;
+      --blue: #6ab0ff;
+      --green: #4ade9a;
+      --grid-line: #ffffff14;
+      --shadow: 0 1px 2px #00000040, 0 8px 24px -12px #00000066;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1217;
+    --surface: #161b22;
+    --surface-2: #1e2530;
+    --border: #2a323d;
+    --text: #e8ecf1;
+    --text-muted: #8996a8;
+    --accent: #ff9a3c;
+    --danger: #ff6b6b;
+    --warning: #ffcf5c;
+    --purple: #b39bef;
+    --blue: #6ab0ff;
+    --grid-line: #ffffff14;
+    --green: #4ade9a;
+    --shadow: 0 1px 2px #00000040, 0 8px 24px -12px #00000066;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 22px;
+    font-weight: 800;
+  }
+  .subtitle {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  .panels {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .chart-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chart-panel .panel-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+  }
+  .chart-panel h2 {
+    margin: 0 0 2px;
+    font-size: 14.5px;
+    font-weight: 700;
+  }
+  .chart-panel .device-sub {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  canvas { display: block; width: 100%; }
+
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  @media print {
+    :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --surface-2: #f5f6f8;
+      --border: #c7cdd6;
+      --text: #111418;
+      --text-muted: #46505c;
+      --accent: #b5620c;
+      --danger: #a3283b;
+      --warning: #8a5c05;
+      --purple: #5c3fa0;
+      --blue: #1c5cae;
+      --green: #17784a;
+      --grid-line: #00000022;
+      --shadow: none;
+    }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: 100%; padding: 0; gap: 0; display: block; }
+    /* plain block flow for the paginated wrapper - flexbox has unreliable
+       break-after support across browsers/print engines */
+    .panels { display: block; }
+    .chart-panel {
+      box-sizing: border-box;
+      width: 100%;
+      height: 160mm;
+      margin-top: 4mm;
+      border: 1px solid var(--border);
+      box-shadow: none;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      break-after: page;
+      page-break-after: always;
+    }
+    .chart-panel:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+    canvas { break-inside: avoid; }
+  }
+</style>
+
+<div class="wrap">
+  <div>
+    <h1>PT vs RAM OS Reboot Resilience &mdash; Per-Device Timeline</h1>
+    <div class="subtitle">Each line is one activity type. Value = instances at that checkpoint (elapsed minutes since test start, 2026-08-14). USB reset/error lines count new dmesg activity since the previous checkpoint; the others are 0/1.</div>
+  </div>
+
+  <div class="panels">
+    <div class="chart-panel">
+      <div class="panel-top">
+        <div>
+          <h2>PT1</h2>
+          <div class="device-sub">172.17.103.43 &middot; baseline &middot; Test 1 (reboot loop) &middot; <span id="cyclesPT1"></span></div>
+        </div>
+        <div class="legend" id="legendPT1"></div>
+      </div>
+      <canvas id="chartPT1" height="420"></canvas>
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-top">
+        <div>
+          <h2>PTRamOS1</h2>
+          <div class="device-sub">172.17.103.135 &middot; RAM OS &middot; Test 1 (reboot loop) &middot; <span id="cyclesPTRamOS1"></span></div>
+        </div>
+        <div class="legend" id="legendPTRamOS1"></div>
+      </div>
+      <canvas id="chartPTRamOS1" height="420"></canvas>
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-top">
+        <div>
+          <h2>PT2</h2>
+          <div class="device-sub">172.17.103.31 &middot; baseline &middot; Test 2 (restart loop) &middot; <span id="cyclesPT2"></span></div>
+        </div>
+        <div class="legend" id="legendPT2"></div>
+      </div>
+      <canvas id="chartPT2" height="420"></canvas>
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-top">
+        <div>
+          <h2>PTRamOS2</h2>
+          <div class="device-sub">172.17.103.206 &middot; RAM OS &middot; Test 2 (restart loop) &middot; <span id="cyclesPTRamOS2"></span></div>
+        </div>
+        <div class="legend" id="legendPTRamOS2"></div>
+      </div>
+      <canvas id="chartPTRamOS2" height="420"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = {
+  "PT1": [
+    {
+      "min": 0.0,
+      "cycle": 1,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 2.05,
+      "cycle": 2,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 4.1,
+      "cycle": 3,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 6.13,
+      "cycle": 4,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 8.18,
+      "cycle": 5,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 10.23,
+      "cycle": 6,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 12.27,
+      "cycle": 7,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 14.32,
+      "cycle": 8,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 16.37,
+      "cycle": 9,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 18.42,
+      "cycle": 10,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 20.45,
+      "cycle": 11,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 22.5,
+      "cycle": 12,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 24.55,
+      "cycle": 13,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 26.6,
+      "cycle": 14,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 28.63,
+      "cycle": 15,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 30.68,
+      "cycle": 16,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 32.73,
+      "cycle": 17,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 34.78,
+      "cycle": 18,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 36.82,
+      "cycle": 19,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 38.87,
+      "cycle": 20,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 40.92,
+      "cycle": 21,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 42.97,
+      "cycle": 22,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 45.0,
+      "cycle": 23,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 47.05,
+      "cycle": 24,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 49.1,
+      "cycle": 25,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 51.15,
+      "cycle": 26,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 53.2,
+      "cycle": 27,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 55.23,
+      "cycle": 28,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 57.28,
+      "cycle": 29,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 59.33,
+      "cycle": 30,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    }
+  ],
+  "PTRamOS1": [
+    {
+      "min": 0.0,
+      "cycle": 1,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 2.05,
+      "cycle": 2,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 4.1,
+      "cycle": 3,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 6.15,
+      "cycle": 4,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 8.2,
+      "cycle": 5,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 10.23,
+      "cycle": 6,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 12.28,
+      "cycle": 7,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 14.33,
+      "cycle": 8,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 16.38,
+      "cycle": 9,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 18.42,
+      "cycle": 10,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 20.47,
+      "cycle": 11,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 22.52,
+      "cycle": 12,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 24.57,
+      "cycle": 13,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 26.62,
+      "cycle": 14,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 28.65,
+      "cycle": 15,
+      "unreachable": 0,
+      "empty": 1,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 30.7,
+      "cycle": 16,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 32.75,
+      "cycle": 17,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 34.8,
+      "cycle": 18,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 36.85,
+      "cycle": 19,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 38.88,
+      "cycle": 20,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 41.0,
+      "cycle": 21,
+      "unreachable": 1,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 0,
+      "usb_error": 0
+    },
+    {
+      "min": 43.05,
+      "cycle": 22,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 45.1,
+      "cycle": 23,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 47.15,
+      "cycle": 24,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 49.18,
+      "cycle": 25,
+      "unreachable": 0,
+      "empty": 1,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 51.23,
+      "cycle": 26,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 53.28,
+      "cycle": 27,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 55.33,
+      "cycle": 28,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 57.38,
+      "cycle": 29,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 59.42,
+      "cycle": 30,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    }
+  ],
+  "PT2": [
+    {
+      "min": 0.0,
+      "cycle": 1,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 0,
+      "usb_error": 0
+    },
+    {
+      "min": 1.3,
+      "cycle": 2,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 2.58,
+      "cycle": 3,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 3.88,
+      "cycle": 4,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 5.18,
+      "cycle": 5,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 6.47,
+      "cycle": 6,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 7.77,
+      "cycle": 7,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 9.07,
+      "cycle": 8,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 10.37,
+      "cycle": 9,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 11.65,
+      "cycle": 10,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 12.95,
+      "cycle": 11,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 15.53,
+      "cycle": 13,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 2,
+      "usb_error": 0
+    },
+    {
+      "min": 16.83,
+      "cycle": 14,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 18.12,
+      "cycle": 15,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 19.42,
+      "cycle": 16,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 20.72,
+      "cycle": 17,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 22.02,
+      "cycle": 18,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 23.3,
+      "cycle": 19,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 24.6,
+      "cycle": 20,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 25.9,
+      "cycle": 21,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 27.18,
+      "cycle": 22,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 28.48,
+      "cycle": 23,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 29.78,
+      "cycle": 24,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 31.07,
+      "cycle": 25,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 32.37,
+      "cycle": 26,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 33.67,
+      "cycle": 27,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 34.95,
+      "cycle": 28,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 36.25,
+      "cycle": 29,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 37.55,
+      "cycle": 30,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 38.85,
+      "cycle": 31,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 40.13,
+      "cycle": 32,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 41.43,
+      "cycle": 33,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 42.73,
+      "cycle": 34,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 44.02,
+      "cycle": 35,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 45.32,
+      "cycle": 36,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 46.62,
+      "cycle": 37,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 47.9,
+      "cycle": 38,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 49.2,
+      "cycle": 39,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 50.5,
+      "cycle": 40,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 1
+    },
+    {
+      "min": 51.8,
+      "cycle": 41,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 53.08,
+      "cycle": 42,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 54.38,
+      "cycle": 43,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 55.68,
+      "cycle": 44,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 56.97,
+      "cycle": 45,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 58.27,
+      "cycle": 46,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 59.57,
+      "cycle": 47,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    }
+  ],
+  "PTRamOS2": [
+    {
+      "min": 0.0,
+      "cycle": 1,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 0,
+      "usb_error": 0
+    },
+    {
+      "min": 1.3,
+      "cycle": 2,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 2.6,
+      "cycle": 3,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 3.88,
+      "cycle": 4,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 5.18,
+      "cycle": 5,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 6.48,
+      "cycle": 6,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 7.77,
+      "cycle": 7,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 9.07,
+      "cycle": 8,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 10.37,
+      "cycle": 9,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 11.65,
+      "cycle": 10,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 12.95,
+      "cycle": 11,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 14.25,
+      "cycle": 12,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 15.53,
+      "cycle": 13,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 16.83,
+      "cycle": 14,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 18.13,
+      "cycle": 15,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 19.43,
+      "cycle": 16,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 20.72,
+      "cycle": 17,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 22.02,
+      "cycle": 18,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 23.32,
+      "cycle": 19,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 24.6,
+      "cycle": 20,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 25.9,
+      "cycle": 21,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 27.2,
+      "cycle": 22,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 28.48,
+      "cycle": 23,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 29.78,
+      "cycle": 24,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 31.08,
+      "cycle": 25,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 32.38,
+      "cycle": 26,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 33.67,
+      "cycle": 27,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 34.97,
+      "cycle": 28,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 36.27,
+      "cycle": 29,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 37.55,
+      "cycle": 30,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 38.85,
+      "cycle": 31,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 40.15,
+      "cycle": 32,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 41.43,
+      "cycle": 33,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 42.73,
+      "cycle": 34,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 44.03,
+      "cycle": 35,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 45.33,
+      "cycle": 36,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 46.62,
+      "cycle": 37,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 47.92,
+      "cycle": 38,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 49.22,
+      "cycle": 39,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 50.52,
+      "cycle": 40,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 51.8,
+      "cycle": 41,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 53.1,
+      "cycle": 42,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 54.4,
+      "cycle": 43,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 55.68,
+      "cycle": 44,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 56.98,
+      "cycle": 45,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 2
+    },
+    {
+      "min": 58.28,
+      "cycle": 46,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    },
+    {
+      "min": 59.57,
+      "cycle": 47,
+      "unreachable": 0,
+      "empty": 0,
+      "enum_error": 0,
+      "usb_reset": 1,
+      "usb_error": 0
+    }
+  ]
+};
+
+// draw order matters: routine/frequent series first (bottom), real anomaly
+// types last (top) so they never get painted over when they land on the same
+// y value at the same cycle (e.g. usb_reset=1 every boot vs. an empty frame)
+const SERIES = [
+  { key: 'usb_reset', label: 'USB resets', colorKey: 'blue' },
+  { key: 'usb_error', label: 'USB errors', colorKey: 'green' },
+  { key: 'enum_error', label: 'enumeration error', colorKey: 'purple' },
+  { key: 'empty', label: 'empty frame', colorKey: 'warning' },
+  { key: 'unreachable', label: 'unreachable', colorKey: 'danger' },
+];
+
+function themedColors() {
+  const cs = getComputedStyle(document.documentElement);
+  return {
+    text: cs.getPropertyValue('--text').trim(),
+    muted: cs.getPropertyValue('--text-muted').trim(),
+    accent: cs.getPropertyValue('--accent').trim(),
+    grid: cs.getPropertyValue('--grid-line').trim(),
+    danger: cs.getPropertyValue('--danger').trim(),
+    warning: cs.getPropertyValue('--warning').trim(),
+    purple: cs.getPropertyValue('--purple').trim(),
+    blue: cs.getPropertyValue('--blue').trim(),
+    green: cs.getPropertyValue('--green').trim(),
+  };
+}
+
+function renderLegend(key) {
+  const el = document.getElementById('legend' + key);
+  if (!el) return;
+  const colors = themedColors();
+  const points = DATA[key] || [];
+  el.innerHTML = SERIES.map(s => {
+    const total = points.reduce((sum, p) => sum + (p[s.key] || 0), 0);
+    return `<span><i class="dot" style="background:${colors[s.colorKey]}"></i>${s.label}<span class="cnt"> (${total})</span></span>`;
+  }).join('');
+}
+
+function drawDeviceChart(canvas, points) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width || 480;
+  // fixed logical height (not print-detected) - avoids racing Chrome's print
+  // rasterization, which can capture the canvas mid-redraw and leave it blank.
+  // CSS scales the canvas element for both screen and print automatically.
+  const h = 420;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const colors = themedColors();
+  const padL = 30, padR = 12, padT = 34, padB = 24;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const maxMin = Math.max(...points.map(p => p.min));
+  const yMax = 10;
+  const xPix = m => padL + (m / (maxMin || 1)) * plotW;
+  const yPix = v => padT + plotH - (v / yMax) * plotH;
+
+  // gridlines (y) - integer ticks
+  ctx.strokeStyle = colors.grid;
+  ctx.lineWidth = 1;
+  ctx.font = '10px ui-monospace, Consolas, monospace';
+  ctx.fillStyle = colors.muted;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const yTicks = yMax;
+  for (let i = 0; i <= yTicks; i++) {
+    const yv = Math.round((i / yTicks) * yMax);
+    const yp = yPix(yv);
+    ctx.beginPath();
+    ctx.moveTo(padL, yp);
+    ctx.lineTo(w - padR, yp);
+    ctx.stroke();
+    ctx.fillText(yv, padL - 6, yp);
+  }
+
+  // x axis ticks every 10 elapsed minutes
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let m = 0; m <= maxMin + 1; m += 10) {
+    const xp = xPix(m);
+    ctx.strokeStyle = colors.grid;
+    ctx.beginPath();
+    ctx.moveTo(xp, padT);
+    ctx.lineTo(xp, h - padB);
+    ctx.stroke();
+    ctx.fillStyle = colors.muted;
+    ctx.fillText(m + 'm', xp, h - padB + 5);
+  }
+
+  // one step-line per activity type
+  SERIES.forEach(s => {
+    const color = colors[s.colorKey];
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.75;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const val = p[s.key] || 0;
+      const xp = xPix(p.min), yp = yPix(val);
+      if (i === 0) {
+        ctx.moveTo(xp, yp);
+      } else {
+        const prevVal = points[i - 1][s.key] || 0;
+        ctx.lineTo(xp, yPix(prevVal));
+        ctx.lineTo(xp, yp);
+      }
+    });
+    ctx.stroke();
+
+    // markers + minute label on nonzero points
+    points.forEach(p => {
+      const val = p[s.key] || 0;
+      if (val <= 0) return;
+      const xp = xPix(p.min), yp = yPix(val);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(xp, yp, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = 'bold 9.5px ui-monospace, Consolas, monospace';
+      ctx.fillStyle = colors.text;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(Math.round(p.min) + 'm', xp, yp - 7);
+    });
+  });
+}
+
+function renderAll() {
+  Object.keys(DATA).forEach(key => {
+    renderLegend(key);
+    const cyclesEl = document.getElementById('cycles' + key);
+    if (cyclesEl) cyclesEl.textContent = DATA[key].length + ' cycles logged';
+    const canvas = document.getElementById('chart' + key);
+    if (canvas) drawDeviceChart(canvas, DATA[key]);
+  });
+}
+
+renderAll();
+window.addEventListener('resize', renderAll);
+</script>

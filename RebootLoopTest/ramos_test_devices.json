@@ -1,0 +1,47 @@
+[
+    {
+        "name": "PT1",
+        "unit_label": "PT",
+        "test": "Test 1: Reboot Loop",
+        "ip": "172.17.103.43",
+        "hostname_seen": "sv-43",
+        "mac": "01:2c:cf:67:33:35:e2",
+        "m2_serial": "PT-E-0034",
+        "note": "Freshly reflashed via rpiwriter2 2026-08-14 - not a continuation of earlier sv-43 overlay/soak history",
+        "user": "camera",
+        "password": "password"
+    },
+    {
+        "name": "PTRamOS1",
+        "unit_label": "PT RamOS",
+        "test": "Test 1: Reboot Loop",
+        "ip": "172.17.103.135",
+        "hostname_seen": "sv-135",
+        "mac": "01:d8:3a:dd:e8:32:47",
+        "m2_serial": "PT-E-004A",
+        "note": "Renamed PT1NEW, new M.2 serial PT-E-0040 - RamOS storage retired, fresh PT baseline burned 2026-08-20, pending deploy_newsdk.ps1 full install + -Activate v3",
+        "user": "camera",
+        "password": "password"
+    },
+    {
+        "name": "PT2",
+        "unit_label": "PT",
+        "test": "Test 2: Pipeline Restart Loop",
+        "ip": "172.17.103.31",
+        "hostname_seen": "sv-142 (likely stale baked-in image hostname, same pattern PT1 initially showed before settling to sv-43)",
+        "mac": "01:2c:cf:67:33:36:93",
+        "user": "camera",
+        "password": "password"
+    },
+    {
+        "name": "PTRamOS2",
+        "unit_label": "PT RamOS",
+        "test": "Test 2: Pipeline Restart Loop",
+        "ip": "172.17.103.206",
+        "hostname_seen": "sv-206 (settled)",
+        "mac": "01:d8:3a:dd:e8:31:d1",
+        "note": "Renamed PT2NEW, new M.2 serial PT-E-003D - RamOS storage retired, fresh PT baseline burned 2026-08-20, pending deploy_newsdk.ps1 full install + -Activate v3",
+        "user": "camera",
+        "password": "password"
+    }
+]
