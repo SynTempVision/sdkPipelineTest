@@ -1,21 +1,26 @@
-# New vs. Old Pipeline Durability Test Plan
+# New vs. Old Pipeline Test Plan
 
-## Hypothesis
+## Goal
 
-The new SDK pipeline (`seekcamera-gstreamer`, currently v3) is **more resilient** than the
-old pipeline (`rtsp-seek-server`) under reboot and restart stress - specifically:
-Seek USB enumeration reliability, ability to self-recover from transient USB errors without
-a full process restart, and overall stability (CPU load, network behavior) under repeated
-stress.
+Determine whether the new SDK pipeline (`seekcamera-gstreamer`, currently v3) is better,
+the same, or worse than the old pipeline (`rtsp-seek-server`).
 
-This is directly testable: if true, new-pipeline units should show fewer/shorter Seek
-enumeration failures, fewer restart events per unit of uptime, and measurable
-self-recovery events that the old pipeline has no equivalent for.
+### Things I am looking for
+
+- Seek USB enumeration reliability
+- Ability to self-recover from transient USB errors without a full restart/exit
+- Overall stability (CPU load, network behavior)
+- Faults / bugs in either system
+
+This is directly testable: if the new pipeline is better, it should show fewer/shorter Seek
+enumeration failures, fewer restart events per unit of uptime, and measurable self-recovery
+events that the old pipeline has no equivalent for.
 
 ## Test Design
 
-Two stress conditions, each run on one old-pipeline unit and one new-pipeline unit in
-parallel, so results are directly comparable pair-by-pair rather than pooled:
+**Option 1 - Matched pairs.** Two stress conditions, each run on one old-pipeline unit and
+one new-pipeline unit in parallel, so results are directly comparable pair-by-pair rather
+than pooled:
 
 | Unit | Pipeline | Stress action | Cycle |
 |---|---|---|---|
@@ -24,13 +29,17 @@ parallel, so results are directly comparable pair-by-pair rather than pooled:
 | PT2 | old (`rtsp-seek-server`) | pipeline restart | 60 sec |
 | PT2NEW | new (`seekcamera-gstreamer`) | pipeline restart | 60 sec |
 
+**Option 2 - Steady-state endurance.** Leave each pipeline running normally, with no
+deliberate reboot/restart stress at all, to catch slow-building problems (memory leaks, CPU
+drift) that a constantly-restarting stress loop would mask by resetting state every cycle.
+
 Every cycle, each unit is checked and logged for: reachability, Seek USB enumeration
 status, image.pgm health, pipeline type/version, pipeline restart count (24h rolling),
 self-recovered-error count (24h rolling, new pipeline only), USB errors/resets, ethernet
-flap count, CPU load/temp, calibration status, and - when something's wrong - a raw
+link UP/DOWN count, CPU load/temp, calibration status, and - when something's wrong - a raw
 `dmesg` snapshot for root-cause evidence.
 
-## Metrics used to prove/disprove the hypothesis
+## Metrics used to prove/disprove the goal
 
 1. **Reachable %** per checkpoint
 2. **Seek Enumeration failure rate and time-to-first-failure**
@@ -65,6 +74,17 @@ silently blocking the test's own restart calls after 50/hour), PT2NEW ran the fu
 restart loop with USB Resets = 0 the entire time, vs. PT2 (old) accumulating hundreds. This
 matches the documented v3 design change: absorbing transient USB errors as warnings instead
 of exiting.
+
+**Live reseat test on PT2 (2026-08-21, current repeatability run)**: with the Pi/hub left powered the
+entire time (no reboot, no power-cycle), unplugging just the Seek camera's own USB cable for ~15
+seconds and replugging it recovered enumeration immediately (`lsusb` went from no Seek device to
+`289d:0011` present). This argues against the shared-power-rail theory, not for it - nothing about the
+power source changed, only the connector was reseated, and the kernel's own automatic port-level power
+cycle (dmesg evidence above) had already failed to fix it the same way. **However, PT2 failed again
+later in the same run**, with the connector untouched - so this isn't a durable one-time fix. Points
+toward an intermittent condition (marginal contact reopening under vibration/thermal cycling, or an
+intermittent power sag under load) rather than a simple bad-seating event or a purely static power-rail
+problem.
 
 ## Current working theory
 

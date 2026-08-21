@@ -134,3 +134,27 @@ this failure mode long-term.
 **Session paused here 2026-08-17 — mid-investigation, not concluded.** Live diagnostics were captured
 for all four units' USB/image/process state and PTRamOS2's disk breakdown; physical inspection and the
 open items above are still outstanding.
+
+## Update 2026-08-21 — physical reseat open item confirmed on PT2
+
+Closing the first "Open items" bullet above (reseat Seek camera USB connector): during the current
+week's old-vs-new pipeline test, PT2 (sv-31) hit the same permanent Seek enumeration failure again.
+With the Pi left powered the whole time (no reboot, no power-cycle of the Pi/hub), unplugging just the
+Seek camera's own USB cable for ~15 seconds and replugging it **recovered enumeration immediately**
+(`lsusb` went from no Seek device to `289d:0011` present).
+
+This is a meaningful data point against the shared-power-rail theory above, not for it: nothing about
+the power source (Pi, hub, splitter) changed - only the physical connector was reseated. That argues
+the fault is a marginal/loose connection at the Seek's own USB connector or cable, or a kernel USB-stack
+state that only clears on a real hotplug interrupt (not the port-level VBUS toggle the kernel already
+tries automatically on its own, which was confirmed NOT to work - see the current test's dmesg evidence
+in `TEST_PLAN.md`).
+
+**However, the recovery was not durable**: PT2 failed again (same "unable to enumerate USB device"
+error) later the same run, without the connector being touched again. A genuinely bad connector that
+got reseated should stay fixed until physically disturbed - recurring on its own points toward an
+*intermittent* condition instead: either the same marginal contact reopening under vibration/thermal
+cycling, or an intermittent power sag under load (consistent with the weekend findings' note that PT2
+carries heavy sustained CPU load from `rtsp-color-server`). Does not rule out a shared cause across the
+bench, and does not cleanly resolve connector-vs-power either - but rules out "one-time fix," and adds
+weight to watching for a load- or time-correlated pattern in when it recurs.
