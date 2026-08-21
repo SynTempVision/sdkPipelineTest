@@ -33,6 +33,7 @@ Usage:
 """
 
 import argparse
+import json
 import re
 import socket
 import sys
@@ -64,8 +65,10 @@ COLUMNS = [
     "USB Communication Errors", "USB Resets", "Ethernet Flap Count",
     "image.pgm Size", "image.pgm Age (s)", "image.pgm Healthy",
     "Pipeline Type", "Pipeline Version", "Pipeline Restarts (24h)", "Self-Recovered Errors (24h)",
+    "Wrapper Script Alive",
+    "Uptime (Hours)",
     "Total CPU %", "Pipeline CPU %",
-    "Calibration", "CPU Temp (C)", "Throttled",
+    "Calibration", "CPU Temp (C)", "Throttled", "Throttled (Meaning)",
     "imgserv Port", "RTSP 8554 Port", "Network (gateway ping)",
     "RAM (total,used,free,available,buff/cache)", "Overlay Active",
     "Overlay Usage (size,used,avail,pct)", "Status", "Raw dmesg tail",
@@ -198,6 +201,38 @@ def parse_output(raw):
     return fields
 
 
+# Bit layout per vcgencmd get_throttled - ported from run_checks_v2.py's
+# decode_throttled so both tools read it the same way.
+THROTTLE_BITS = [(0x1, "Under-V"), (0x2, "FreqCap"), (0x4, "Throttle"), (0x8, "Hot")]
+THROTTLE_HIST_BITS = [(0x10000, "Under-V"), (0x20000, "FreqCap"), (0x40000, "Throttle"), (0x80000, "Hot")]
+
+
+def decode_throttled(hex_str):
+    if not hex_str:
+        return ""
+    try:
+        val = int(hex_str, 16)
+    except ValueError:
+        return hex_str
+    if val == 0:
+        return "Clean"
+    active = [label for mask, label in THROTTLE_BITS if val & mask]
+    hist = [label for mask, label in THROTTLE_HIST_BITS if val & mask]
+    parts = []
+    if active:
+        parts.append("+".join(active))
+    if hist:
+        parts.append(f"({'+'.join(hist)} hist)")
+    return " ".join(parts)
+
+
+def _uptime_hours(uptime_sec):
+    try:
+        return round(float(uptime_sec) / 3600, 1)
+    except (TypeError, ValueError):
+        return ""
+
+
 def sync_header(ws):
     """Inserts any column newly added to COLUMNS that an existing sheet's
     header row doesn't have yet, at the position COLUMNS says it belongs -
@@ -249,6 +284,113 @@ def log_row(log_path, row_values, reachable):
         cell.border = BORDER
         cell.fill = fill
     wb.save(log_path)
+
+
+WWW_ROOT = Path(r"C:\wamp64\www\sdkPipelineTest")
+STATUS_DIR = WWW_ROOT / "status"
+DASHBOARD_PATH = WWW_ROOT / "dashboard.html"
+
+
+def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields):
+    """Each of the (up to) 4 running processes owns exactly one file here -
+    no write contention, no locking needed. The dashboard is rebuilt by
+    reading whichever snapshot files currently exist, so it stays fresh as
+    long as at least one process is still cycling."""
+    STATUS_DIR.mkdir(exist_ok=True)
+    snapshot = {
+        "unit": unit_label,
+        "ip": ip,
+        "pipeline": pipeline,
+        "action": action,
+        "run_id": run_id,
+        "cycle": cycle_num,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "reachable": reachable,
+        "seek_enumeration": fields.get("SEEK_ENUMERATION", ""),
+        "image_healthy": fields.get("IMAGE_OK") == "1",
+        "image_desc": fields.get("IMAGE_PGM", ""),
+        "pipeline_type": fields.get("PIPELINE_TYPE", ""),
+        "pipeline_restarts": fields.get("PIPELINE_RESTARTS", ""),
+        "self_recovered": fields.get("SELF_RECOVERED_ERRORS", ""),
+        "wrapper_alive": fields.get("WRAPPER_ALIVE", ""),
+        "cpu_pct": fields.get("TOTAL_CPU_PCT", ""),
+        "cpu_temp": fields.get("TEMP_C", ""),
+        "throttled_meaning": decode_throttled(fields.get("THROTTLED", "")),
+        "status": fields.get("STATUS", ""),
+    }
+    tmp = STATUS_DIR / f"{unit_label}.json.tmp"
+    tmp.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+    tmp.replace(STATUS_DIR / f"{unit_label}.json")  # atomic - dashboard render never sees a half-written file
+
+
+def render_dashboard():
+    snapshots = []
+    if STATUS_DIR.exists():
+        for f in sorted(STATUS_DIR.glob("*.json")):
+            try:
+                snapshots.append(json.loads(f.read_text(encoding="utf-8")))
+            except (json.JSONDecodeError, OSError):
+                continue  # skip a snapshot caught mid-write rather than crash the whole dashboard
+
+    def esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    rows_html = ""
+    for s in snapshots:
+        reachable_ok = s.get("reachable") is True
+        status_text = s.get("status") or ("" if reachable_ok else "UNREACHABLE")
+        status_class = "ok" if (reachable_ok and (not status_text or status_text == "PIPELINE HEALTHY")) else "bad"
+        img_class = "ok" if s.get("image_healthy") else "bad"
+        rows_html += f'''<tr>
+  <td class="unit">{esc(s.get("unit"))}</td>
+  <td>{esc(s.get("ip"))}</td>
+  <td>{esc(s.get("pipeline"))}</td>
+  <td>{esc(s.get("action"))}</td>
+  <td>{esc(s.get("cycle"))}</td>
+  <td>{esc(s.get("timestamp"))}</td>
+  <td class="{'ok' if reachable_ok else 'bad'}">{"Yes" if reachable_ok else "No"}</td>
+  <td class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{esc(s.get("seek_enumeration"))}</td>
+  <td class="{img_class}">{esc(s.get("image_desc"))}</td>
+  <td>{esc(s.get("pipeline_restarts"))}</td>
+  <td>{esc(s.get("self_recovered"))}</td>
+  <td>{esc(s.get("wrapper_alive"))}</td>
+  <td>{esc(s.get("cpu_pct"))}%</td>
+  <td>{esc(s.get("cpu_temp"))}&deg;C</td>
+  <td>{esc(s.get("throttled_meaning"))}</td>
+  <td class="{status_class}">{esc(status_text)}</td>
+</tr>'''
+
+    html = f'''<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Reboot Loop Test - Live Status</title>
+<style>
+  body {{ font-family: Arial, sans-serif; margin: 24px; color: #222; }}
+  h1 {{ font-size: 18px; }}
+  .updated {{ color: #777; font-size: 12px; margin-bottom: 16px; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 13px; }}
+  th, td {{ padding: 6px 10px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }}
+  th {{ background: #f5f5f5; position: sticky; top: 0; }}
+  td.unit {{ font-weight: bold; }}
+  .ok {{ color: #2e7d32; }}
+  .bad {{ color: #c62828; font-weight: bold; }}
+  .empty {{ color: #999; }}
+</style>
+</head>
+<body>
+<h1>Reboot Loop Test - Live Status</h1>
+<div class="updated">Rewritten fresh every cycle by whichever unit finishes next - reload this page (F5) to see the latest. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
+{'<p class="empty">No status snapshots yet - waiting for the first cycle to complete.</p>' if not snapshots else f"""<table>
+<tr><th>Unit</th><th>IP</th><th>Pipeline</th><th>Action</th><th>Cycle</th><th>Last Update</th>
+<th>Reachable</th><th>Seek Enum</th><th>image.pgm</th><th>Restarts (24h)</th><th>Self-Recovered</th>
+<th>Wrapper Alive</th><th>CPU %</th><th>CPU Temp</th><th>Throttled</th><th>Status</th></tr>
+{rows_html}
+</table>"""}
+</body>
+</html>
+'''
+    DASHBOARD_PATH.write_text(html, encoding="utf-8")
 
 
 def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipeline, log_path):
@@ -303,11 +445,14 @@ def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipelin
         fields.get("PIPELINE_VERSION", ""),
         fields.get("PIPELINE_RESTARTS", ""),
         fields.get("SELF_RECOVERED_ERRORS", ""),
+        fields.get("WRAPPER_ALIVE", ""),
+        _uptime_hours(fields.get("UPTIME_SEC", "")),
         fields.get("TOTAL_CPU_PCT", ""),
         fields.get("PIPELINE_CPU_PCT", ""),
         fields.get("CALIBRATION", ""),
         fields.get("TEMP_C", ""),
         fields.get("THROTTLED", ""),
+        decode_throttled(fields.get("THROTTLED", "")),
         fields.get("PORT_IMGSERV", ""),
         fields.get("PORT_RTSP_8554", ""),
         fields.get("NETWORK", ""),
@@ -318,6 +463,8 @@ def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipelin
         fields.get("DMESG_TAIL", ""),
     ]
     log_row(log_path, row, reachable)
+    write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields)
+    render_dashboard()
 
     # pad to the nominal total cycle length before the next action fires - uses
     # the real elapsed time for this cycle (not a guess), so cadence stays

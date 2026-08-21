@@ -79,6 +79,25 @@ else
     SELF_RECOVERED_ERRORS="$SELF_RECOVERED"
 fi
 
+# -- Wrapper script alive (old pipeline only) ------------------------
+# rtsp-seek-server.sh's while-loop only relaunches the binary on a real
+# exit - it does nothing if the binary hangs, and nothing relaunches the
+# wrapper itself if IT dies (no supervisor-of-the-supervisor; only a
+# fresh boot fixes that). Checking the wrapper process separately from
+# the binary tells the two failure modes apart: wrapper alive + binary
+# briefly absent = normal mid-restart-cycle; wrapper absent = no self-
+# healing possible at all until next reboot (see WEEKEND_TEST_FINDINGS.md -
+# PT1 showed neither process running, not crash-looping).
+if [ "$PIPELINE_TYPE" = "old" ]; then
+    if pgrep -f "rtsp-seek-server.sh" >/dev/null 2>&1; then
+        WRAPPER_ALIVE="Yes"
+    else
+        WRAPPER_ALIVE="No"
+    fi
+else
+    WRAPPER_ALIVE="n/a (new pipeline)"
+fi
+
 # -- CPU usage: total system + pipeline process, delta-sampled over ~1s -
 # same technique camera-check-v2.sh uses. Directly relevant to this test:
 # tonight's sv-156/sv-129 investigation found a livelocked process burning
@@ -212,8 +231,21 @@ else
     if [ "$age" -gt "$STALE_SECS" ]; then
         IMAGE_DESC="STALE (last updated ${age}s ago)"
     else
-        IMAGE_DESC="VALID (${size} bytes, updated ${age}s ago)"
-        IMAGE_OK=1
+        # Size+freshness alone can't tell a real frame from a correctly-sized,
+        # freshly-rewritten, but frozen/all-zero one (confirmed on PTRamOS1
+        # during the weekend test, 2026-08-17 - passed as healthy the whole
+        # time). Sample the last 200 bytes (safely past the PGM header
+        # regardless of its exact length) and count distinct byte values -
+        # real thermal pixel data always has some variance; a blank/frozen
+        # frame collapses to 1. Verified live on sv-31, 2026-08-21: a real
+        # frame's tail sample returned 10 distinct values.
+        PIXEL_VARIANCE=$(tail -c 200 "$RAMDISK" 2>/dev/null | od -An -tx1 | tr -d ' \n' | fold -w2 | sort -u | wc -l)
+        if [ "$PIXEL_VARIANCE" -le 1 ]; then
+            IMAGE_DESC="FROZEN (${size} bytes, updated ${age}s ago, but pixel data is uniform - not a real frame)"
+        else
+            IMAGE_DESC="VALID (${size} bytes, updated ${age}s ago)"
+            IMAGE_OK=1
+        fi
     fi
 fi
 IMAGE_SIZE=$(stat -c %s "$RAMDISK" 2>/dev/null || echo 0)
