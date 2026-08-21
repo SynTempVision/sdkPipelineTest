@@ -59,7 +59,7 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 | PT0.2NEW | new (`seekcamera-gstreamer`) | Type B | 5 min |
 
 - All units have the same Power input
-    - (PoE Splitter 5V 3.5A OR 12V 2A) because I have qty 4 of each.
+    - PoE Splitter (5V 3.5A) because I have qty 4 of each.
     - STEAMO Model:GPOE208 Gigabit PoE Switch
     - The same ethernet cables
 - All units are burned with the same baseline OS image. 
