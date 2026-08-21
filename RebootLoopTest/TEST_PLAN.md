@@ -1,11 +1,11 @@
 # New vs. Old Pipeline Test Plan
 
 ## Purpsoe for this test: 
-To find The cameras at LB and HyCO4 have been experiencing IR Video Pipeline Failures. These failures include a frozen video pipeline and seek cameras not being able to enumerate. Frozen video pipeline can occur during boot and or during runtime. 
+To find a solution for the cameras at LB and HyCO4 that have been experiencing IR Video Pipeline Failures. These failures include a frozen video pipeline and seek cameras not being able to enumerate. Frozen video pipeline can occur during boot and or during runtime. 
 
 
 ## Goal: 
-Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the same, or worse than the old pipeline (`rtsp-seek-server`). And furthermore if none of the pipelines can solve the seek enumeration problem can the new one at least have fewer and or delay the seek enumeration hardware failure. Lastly, how can we solve the video pipeline errors. Side Note: i am not sure that wither of the pipelines can stop the Seek camera from not enumerating - This might be a Seek issue.
+Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the same, or worse than the old pipeline (`rtsp-seek-server`). And furthermore if none of the pipelines can solve the seek enumeration problem can the new one at least have fewer and or delay the seek enumeration hardware failure. Lastly, how can we solve the video pipeline failures. Side Note: i am not sure that either of the pipelines can stop the Seek camera from enumeration failure - This might be a Seek issue.
 
 ### Differences between the Old and New Pipeline:
    - OLD
