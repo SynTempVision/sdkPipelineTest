@@ -90,7 +90,7 @@ Two stress conditions, each run on one old-pipeline unit and one new-pipeline un
    - Is the device reachable via SSH
    - Seek USB enumeration status (grep the kernel log and command that reads what devices are connected to the USB hub)
    - Network behavior: ethernet link UP/DOWN count (grep the kernel log)
-   - CPU load / CPU Temp
+   - CPU load / CPU Temp / CPU Throttling
    - kernel log snapshot that is replaced every time it is updated so I'm not storing excessive amounts of data.
  
 - New Pipeline:
