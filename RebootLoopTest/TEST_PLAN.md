@@ -18,13 +18,18 @@ Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the s
       - uses the sdk 4.4 version
       - systemd service (seekcamera-gstreamer.service)
       - Has an internal watchdog: absorbs USB timeout errors as warnings and keeps running; only exits and restarts if image frames stop being produced. 
+
 ## Test 0 Design:
 Steady-state endurance.** Leave each pipeline running normally, with no deliberate reboot/restart stress at all, to catch slow-building problems that a constantly-restarting stress loop would mask by resetting state every cycle.
 
+- 4 units total so that was there is replication in the setup. more details below:
+
 | Unit/Test# | Pipeline | Logging Cycle 
 |---|---|---|
-| PT0 | old (`rtsp-seek-server`) | 5 min | 
-| PT0NEW | new (`seekcamera-gstreamer`) | 5 min |
+| PT0.1 | old (`rtsp-seek-server`) | 5 min | 
+| PT0.1NEW | new (`seekcamera-gstreamer`) | 5 min |
+| PT0.2 | old (`rtsp-seek-server`) | 5 min | 
+| PT0.2NEW | new (`seekcamera-gstreamer`) | 5 min |
 
 - All units have the same Power input
     - (PoE Splitter 5V 3.5A OR 12V 2A) because I have qty 4 of each.
@@ -32,7 +37,7 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
     - The same ethernet cables
 - All units are burned with the same baseline OS image. 
 
-### Instruments that are logged on a N cycle time
+### Instruments that are logged on a N cycle time for N amount of days
 - Both pipelines:
    - Is the device reachable via ssh
    - Seek USB enumeration status (grep the kernel log and command that reads what devices are connected to the USB hub)
@@ -57,7 +62,10 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 Prediction: 
 - if the new pipeline is better, it should show fewer/delayed Seek enumeration failures.
 
-- Next Steps:
+Test Succession Criteria:
+- The new pipeline has no seek enumeration or at least less than the old pipeline
+
+Next Steps:
    - Get test planned reviewed and Approved
    - Build a website that displays the static information about each test device and the current status of test device during a test run.
 
