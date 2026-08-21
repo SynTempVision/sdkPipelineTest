@@ -1,6 +1,6 @@
 # New vs. Old Pipeline Test Plan
 
-## Goal
+## Goal:
 Determine whether the new SDK pipeline (`seekcamera-gstreamer`, currently v3) is better, the same, or worse than the old pipeline (`rtsp-seek-server`).
 
 ### Things I am looking for:
