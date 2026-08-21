@@ -170,7 +170,21 @@ def run_check(ip, user, password):
         sftp.put(str(CHECK_SCRIPT), "/tmp/camera-check-reboot-test.sh")
         sftp.close()
         raw = run_remote_command(transport, "bash /tmp/camera-check-reboot-test.sh", read_timeout=CHECK_TIMEOUT_SEC)
-        return parse_output(raw)
+        fields = parse_output(raw)
+        if not fields:
+            # SSH/SFTP succeeded but the check script produced no parseable
+            # KEY=VALUE output - e.g. the read hit CHECK_TIMEOUT_SEC before
+            # the script printed anything, or the remote command failed
+            # outright. This must NOT be logged as a normal, data-complete
+            # cycle - see PT2 cycle 429, 2026-08-21: it landed in the master
+            # log as Reachable=Yes with every other field blank, which
+            # fooled the report's "first Seek enumeration failure" detection
+            # into picking this row instead of the real failure two cycles
+            # later. Raising here routes it through the same reachability-
+            # failure path as a dropped connection, so it's logged and
+            # treated consistently instead of masquerading as success.
+            raise RuntimeError(f"check script produced no parseable output (raw={raw[:200]!r})")
+        return fields
     finally:
         transport.close()
 
@@ -672,11 +686,22 @@ evidence for what the kernel saw, not just the fact that enumeration failed:</p>
         # restart` fires, before systemd reports the unit active again - the
         # pipeline never actually switched, the check just misread it that one
         # cycle (confirmed on PT2NEW 2026-08-21: Pipeline Restarts kept
-        # climbing normally through every one of these, no freeze). A RUN of
-        # several consecutive "old" readings with restarts frozen is the real
-        # StartLimitBurst symptom (see WEEKEND_TEST_FINDINGS.md) - tell them
-        # apart by run length, and don't count misreads as if they were a
-        # real pipeline-type change in the headline value.
+        # climbing normally through every one of these, no freeze).
+        #
+        # A RUN of several consecutive "old" readings means something else,
+        # and it's action-dependent: for a restart-action test, that's the
+        # real StartLimitBurst symptom (systemctl restart being rate-limited -
+        # see WEEKEND_TEST_FINDINGS.md). For a reboot-action test there is no
+        # systemctl restart happening at all - StartLimitBurst doesn't apply.
+        # There, a run of "old" readings almost always means the pipeline
+        # service just took longer than the T+1:30 checkpoint to reach
+        # "active" on that particular boot - and if those cycles overlap with
+        # an ongoing Seek Enumeration failure (confirmed on PT1NEW
+        # 2026-08-21: all 19 "old" readings were also all 19 image.pgm
+        # Unhealthy readings, and every one fell inside the existing Seek
+        # enumeration outage), that's not a separate incident - it's the
+        # service repeatedly retrying to find a camera that's already known
+        # to be missing.
         runs, cur = [], None
         for v in ptype_col:
             if cur and cur[0] == v:
@@ -686,11 +711,24 @@ evidence for what the kernel saw, not just the fact that enumeration failed:</p>
                 runs.append(cur)
         old_run_lengths = [n for v, n in runs if v == "old"]
         max_old_run = max(old_run_lengths, default=0)
-        if max_old_run >= 3:
+        old_idxs = [i for i, v in enumerate(ptype_col) if v == "old"]
+        overlap_with_seek_fail = sum(1 for i in old_idxs if seek_states[i] == "fail")
+
+        if max_old_run >= 3 and action == "restart":
             ptype_str = ", ".join(f"{k}: {v}" for k, v in pipeline_types.most_common())
             ptype_flag_class = "warn"
             ptype_flag = (f" &#9888; sustained old-pipeline reading ({max_old_run} consecutive cycles) - "
                            f"StartLimitBurst-style stall, see WEEKEND_TEST_FINDINGS.md")
+        elif len(old_idxs) and overlap_with_seek_fail == len(old_idxs):
+            # Fully explained by the Seek Enumeration failure already shown
+            # below (and in Findings) - no separate note needed here.
+            ptype_str = pipeline_types.most_common(1)[0][0]
+        elif max_old_run >= 3:
+            ptype_str = ", ".join(f"{k}: {v}" for k, v in pipeline_types.most_common())
+            ptype_flag_class = "warn"
+            ptype_flag = (f" &#9888; sustained old-pipeline reading ({max_old_run} consecutive cycles) - "
+                           f"pipeline took longer than the checkpoint to come up on {len(old_run_lengths)} boot(s), "
+                           f"not linked to a Seek enumeration failure - worth a closer look")
         else:
             ptype_str = pipeline_types.most_common(1)[0][0]  # dominant/real type - "old" here was never real
             ptype_flag = (f" ({len(old_run_lengths)} isolated single-cycle misread(s), never actually switched "
@@ -738,19 +776,28 @@ evidence for what the kernel saw, not just the fact that enumeration failed:</p>
     # single ongoing issue fragments into dozens of near-duplicate 1-cycle
     # "statuses" instead of one real bucket. Normalize digits out for
     # grouping/counting, but keep one real example string per bucket to
-    # display so it's still readable.
+    # display so it's still readable. Blip rows (blank Status - no real data
+    # for that cycle, same as everywhere else in this report) are excluded
+    # from the breakdown entirely rather than showing up as a confusing
+    # count-only row with empty text - see PT1 cycle 221, 2026-08-21.
     def normalize_status(s):
         return re.sub(r"\d+", "N", s or "")
 
     status_examples = {}
+    status_blips = 0
     for s in col("Status"):
-        key = normalize_status(s)
-        status_examples.setdefault(key, s)
-    status_counts = Counter(normalize_status(s) for s in col("Status"))
+        if not s:
+            status_blips += 1
+            continue
+        status_examples.setdefault(normalize_status(s), s)
+    status_counts = Counter(normalize_status(s) for s in col("Status") if s)
     status_rows_html = "\n".join(
-        f'<tr><td>{cnt}</td><td>{_esc((status_examples[key] or "")[:140])}</td></tr>'
+        f'<tr><td>{cnt}</td><td>{_esc(status_examples[key][:140])}</td></tr>'
         for key, cnt in status_counts.most_common(8)
     )
+    if status_blips:
+        status_rows_html += (f'<tr><td>{status_blips}</td><td class="note">'
+                              f'(no data - checkpoint unreachable or incomplete)</td></tr>')
 
     def metric_row(label, col_name, unit=""):
         """No sum column - it was meaningless for two different reasons
