@@ -1,5 +1,5 @@
 # New vs. Old Pipeline Test Plan
-rev2
+rev3
 8/21/26
 
 ## Purpose for this test: 
@@ -7,19 +7,44 @@ To find a solution for the cameras at LB and HyCO4 that have been experiencing I
 
 
 ## Goal: 
-Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the same, or worse than the old pipeline (`rtsp-seek-server`). And furthermore if none of the pipelines can solve the seek enumeration problem can the new one at least have fewer and or delay the seek enumeration hardware failure. Lastly, how can we solve the video pipeline failures. Side Note: i am not sure that either of the pipelines can stop the Seek camera from enumeration failure - This might be a Seek issue.
+Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the same, or worse than the old pipeline (`rtsp-seek-server`). And furthermore if none of the pipelines can solve the seek enumeration problem can the new one at least have fewer and or delay the seek enumeration hardware failure. Solve / Mitigate the video pipeline failures. Side Note: i am not sure that either of the pipelines can stop the Seek camera from enumeration failure - This might be a Seek issue.
 
 ### Differences between the Old and New Pipeline:
-   - OLD
-      - uses the sdk 4.1 version
+   - OLD Pipeline
+      - created by KDK uses the sdk 4.1 version
       - started via crontab job that run system_init.sh at boot
-      - rtsp-seek-server.sh a script that was created to restart on crash
+      - rtsp-seek-server.sh a script that was created to restart on crash 
       - pipeline writes frames to a RAMDISK file (image.pgm),
       - image/pgm served separately by imgserv on port 2105 to SV
-   - NEW
+      - 
+```
+vdff
+```
+   - NEW pipeline
       - uses the sdk 4.4 version
       - systemd service (seekcamera-gstreamer.service)
       - Has an internal watchdog: absorbs USB timeout errors as warnings and keeps running; only exits and restarts if image frames stop being produced. 
+      - seekcamera-gstreamer -c -p "queue ! calibration ! pgmencode ! syntempsink"
+
+```
+Element: appsrc
+Role: SDK-fed raw thermal frame source 
+────────────────────────────────────────
+Element: queue
+Role: Buffering/threading boundary between the SDK callback thread and
+the rest of the pipeline
+────────────────────────────────────────
+Element: calibration
+Role: Applies the per-camera calibration (slope/offset fromcamera_imager) — this is the custom element read once at pipeline start (gst_calibration_start())
+────────────────────────────────────────
+Element: pgmencode
+Role: Encodes the calibrated frame into PGM format
+────────────────────────────────────────
+Element: syntempsink
+Role: Custom sink — writes/serves the final output (this is presumably
+what feeds RTSP + wherever else it goes)
+```
+     
 
 ## Test 0 Design:
 Steady-state endurance.** Leave each pipeline running normally, with no deliberate reboot/restart stress at all, to catch slow-building problems that a constantly-restarting stress loop would mask by resetting state every cycle.
