@@ -5,6 +5,9 @@
 Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better,
 the same, or worse than the old pipeline (`rtsp-seek-server`).
 
+## Alternate Goal:
+Does the the new pipeline delay/prolong the onset of the hardware failure"
+
 ### Things I am looking for
 
 - Seek USB enumeration reliability
