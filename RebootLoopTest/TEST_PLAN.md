@@ -51,12 +51,12 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 
 - 4 units total so that was there is replication in the setup. more details below:
 
-| Unit/Test# | Pipeline | Logging Cycle 
-|---|---|---|
-| PT0.1 | old (`rtsp-seek-server`) | 5 min | 
-| PT0.1NEW | new (`seekcamera-gstreamer`) | 5 min |
-| PT0.2 | old (`rtsp-seek-server`) | 5 min | 
-| PT0.2NEW | new (`seekcamera-gstreamer`) | 5 min |
+| Unit/Test# | Pipeline | Type | Logging Cycle 
+|---|---|---|---|
+| PT0.1 | old (`rtsp-seek-server`) | Type A | 5 min | 
+| PT0.1NEW | new (`seekcamera-gstreamer`) | Type B | 5 min |
+| PT0.2 | old (`rtsp-seek-server`) | Type A | 5 min | 
+| PT0.2NEW | new (`seekcamera-gstreamer`) | Type B | 5 min |
 
 - All units have the same Power input
     - (PoE Splitter 5V 3.5A OR 12V 2A) because I have qty 4 of each.
