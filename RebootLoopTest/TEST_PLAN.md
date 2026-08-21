@@ -10,18 +10,27 @@ Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the s
 ### Differences between the Old and New Pipeline:
    - OLD
       - uses the sdk 4.1 version
-      - 
+      - started via crontab job that run system_init.sh at boot
+      - rtsp-seek-server.sh a script that was created to restart on crash
+      - pipelien writes frames to a RAMDISK file (image.pgm),
+      - image/pgm served separately by imgserv on port 2105 to SV
    - NEW
       - uses the sdk 4.4 version
-      - 
-
+      - systemd service (seekcamera-gstreamer.service)
+      - Has an internal watchdog: absorbs USB timeout errors as warnings and keeps running; only exits and restarts if image frames stop being produced. 
 ## Test 0 Design:
 Steady-state endurance.** Leave each pipeline running normally, with no deliberate reboot/restart stress at all, to catch slow-building problems that a constantly-restarting stress loop would mask by resetting state every cycle.
 
 | Unit/Test# | Pipeline | Logging Cycle 
-|---|---|---|---|
+|---|---|---|
 | PT0 | old (`rtsp-seek-server`) | 5 min | 
 | PT0NEW | new (`seekcamera-gstreamer`) | 5 min |
+
+- All units have the same Power input
+    - (PoE Splitter 5V 3.5A OR 12V 2A) because I have qty 4 of each.
+    - STEAMO Model:GPOE208 Gigabit PoE Switch
+    - The same ethernet cables
+- All units are burned with the same baseline OS image. 
 
 ### Instruments that are logged on a N cycle time
 - Both pipelines:
@@ -69,9 +78,18 @@ Two stress conditions, each run on one old-pipeline unit and one new-pipeline un
 - All units are burned with the same baseline OS image. 
 
 ### Instruments that are logged on a N cycle time
-Every cycle, each unit is checked and logged for: reachability, Seek USB enumeration
-status, image.pgm health, pipeline type/version, pipeline restart count,
-self-recovered-error count (24h, new pipeline only), USB errors/resets, ethernet
-link UP/DOWN count, CPU load/temp, calibration status, and - when something's wrong - a raw
-`dmesg` snapshot for root-cause evidence.
+- Both pipelines:
+   - Is the device reachable via ssh
+   - Seek USB enumeration status (grep the kernel log and command that reads what devices are connected to the USB hub)
+   - Network behavior: ethernet link UP/DOWN count (grep the kernal log)
+   - CPU load / CPU Temp
+   - kernal log snapshot that is replaced everytime it is updated so im not storing exxcessive amounts of data.
+ 
+- New Pipeline:
+   - Number of usb error warnings
+   - Number of systemd resets on the pipeline
+   - If calibration data loaded on pipeline start
 
+- Old pipeline:
+   - image.pgm health - Are the bytes valid and when the last write was ?
+   - 
