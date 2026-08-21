@@ -16,10 +16,39 @@ Determine whether the new SDK pipeline (`seekcamera-gstreamer`) is better, the s
       - rtsp-seek-server.sh a script that was created to restart on crash 
       - pipeline writes frames to a RAMDISK file (image.pgm),
       - image/pgm served separately by imgserv on port 2105 to SV
-      - 
+      - rtsp-seek-server -c (no runtime pipeline string like new - old pipeline's chain is compiled into the binary, not passed as a CLI argument)
+
 ```
-vdff
+appsrc name=app0 format=time ! timecodestamper ! normfilter ! tee name=tp
+  tp. ! queue ! rtpgstpay name=pay0
+  tp. ! queue ! multifilesink max-files=10 location="/usr/local/bin/camera/ramdisk/image%d"
 ```
+
+```
+Element: appsrc (name=app0, format=time)
+Role: SDK-fed raw thermal frame source, with time-based timestamps
+────────────────────────────────────────
+Element: timecodestamper
+Role: Adds precise timestamps to each buffer for synchronization
+────────────────────────────────────────
+Element: normfilter
+Role: Custom normalization filter — same position in the chain as new
+pipeline's "calibration" element (both correct the raw frame right after
+capture), but a different implementation/name.
+────────────────────────────────────────
+Element: tee (name=tp)
+Role: Splits the stream into two parallel branches — RTP streaming and
+file save. GStreamer-native fan-out; new pipeline has no equivalent split,
+it's a single linear chain ending in one custom sink instead.
+────────────────────────────────────────
+Element: queue ! rtpgstpay (name=pay0)  [Branch 1]
+Role: Payloads the stream for RTP streaming (needs an external sink like
+udpsink to actually transmit it)
+────────────────────────────────────────
+Element: queue ! multifilesink (max-files=10, location="image%d")  [Branch 2]
+Role: Saves frames to disk as a rotating buffer of up to 10 files
+```
+
    - NEW pipeline
       - uses the sdk 4.4 version
       - systemd service (seekcamera-gstreamer.service)
