@@ -59,13 +59,13 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 3. Any difference in Seek enumeration failures between pipelines?
 4. Any other faults/bugs, in either pipeline
 
-###Prediction: 
+### Prediction: 
 - if the new pipeline is better, it should show fewer/delayed Seek enumeration failures.
 
-###Test Succession Criteria:
+### Test Succession Criteria:
 - The new pipeline has no seek enumeration or at least less than the old pipeline
 
-###Next Steps:
+### Next Steps:
    - Get test planned reviewed and Approved
    - Build a website that displays the static information about each test device and the current status of test device during a test run.
 
