@@ -49,6 +49,8 @@ Element: queue ! multifilesink (max-files=10, location="image%d")  [Branch 2]
 Role: Saves frames to disk as a rotating buffer of up to 10 files
 ```
 
+- rtsp-seek-server.sh summary: launched once at boot (cron -> system_init.sh -> `&`), no supervisor watches the wrapper itself. Its `while` loop runs `usbreset` + relaunches every time the binary exits. Gaps: doesn't catch a hang (binary frozen, not exited), and can't self-heal if the wrapper process itself dies. Both measurable via `pgrep -f rtsp-seek-server.sh` (wrapper alive?) + process/CPU%/image.pgm-freshness (crashed vs hung vs livelocked vs healthy).
+
    - NEW pipeline
       - uses the sdk 4.4 version
       - systemd service (seekcamera-gstreamer.service)
