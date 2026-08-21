@@ -12,7 +12,7 @@ Determine whether the new SDK pipeline (`seekcamera-gstreamer`, currently v3) is
 
 ## Test Design
 
-Two stress conditions, each run on one old-pipeline unit and one new-pipeline unit in
+- Option 1: Two stress conditions, each run on one old-pipeline unit and one new-pipeline unit in
 parallel, so results are directly comparable pair-by-pair rather than pooled:
 
 | Unit | Pipeline | Stress action | Cycle |
@@ -22,13 +22,17 @@ parallel, so results are directly comparable pair-by-pair rather than pooled:
 | PT2 | old (`rtsp-seek-server`) | pipeline restart | 60 sec |
 | PT2NEW | new (`seekcamera-gstreamer`) | pipeline restart | 60 sec |
 
-Every cycle, each unit is checked and logged for: reachability, Seek USB enumeration
-status, image.pgm health, pipeline type/version, pipeline restart count (24h rolling),
-self-recovered-error count (24h rolling, new pipeline only), USB errors/resets, ethernet
-flap count, CPU load/temp, calibration status, and - when something's wrong - a raw
-`dmesg` snapshot for root-cause evidence.
+- Option 2: Steady-state, no-stress endurance run. Leave each pipeline running normally to catch slow building problems
+
+
+
 
 ## Metrics used to prove/disprove the hypothesis
+Every cycle, each unit is checked and logged for: reachability, Seek USB enumeration
+status, image.pgm health, pipeline type/version, pipeline restart count (24h),
+self-recovered-error count (24h, new pipeline only), USB errors/resets, ethernet
+link UP/DOWN count, CPU load/temp, calibration status, and - when something's wrong - a raw
+`dmesg` snapshot for root-cause evidence.
 
 1. **Reachable %** per checkpoint
 2. **Seek Enumeration failure rate and time-to-first-failure**
