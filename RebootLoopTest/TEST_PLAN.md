@@ -50,7 +50,10 @@ Role: Saves frames to disk as a rotating buffer of up to 10 files
       - uses the sdk 4.4 version
       - systemd service (seekcamera-gstreamer.service)
       - Has an internal watchdog: absorbs USB timeout errors as warnings and keeps running; only exits and restarts if image frames stop being produced. 
-      - seekcamera-gstreamer -c -p "queue ! calibration ! pgmencode ! syntempsink"
+
+```
+appsrc ! queue ! calibration ! pgmencode ! syntempsink
+```
 
 ```
 Element: appsrc
