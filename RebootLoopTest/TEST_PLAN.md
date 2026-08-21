@@ -1,4 +1,6 @@
 # New vs. Old Pipeline Test Plan
+rev2
+8/21/26
 
 ## Purpose for this test: 
 To find a solution for the cameras at LB and HyCO4 that have been experiencing IR Video Pipeline Failures. These failures include a frozen video pipeline and seek cameras not being able to enumerate. Frozen video pipeline can occur during boot and or during runtime. 
