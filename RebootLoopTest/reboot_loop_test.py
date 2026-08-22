@@ -59,6 +59,11 @@ REBOOT_CYCLE_LENGTH_SEC = 120    # T+2:00 - total nominal cycle length
 RESTART_TIMEOUT_SEC = 45         # cap on the blocking pipeline_restart.sh call (~30s observed)
 RESTART_CYCLE_LENGTH_SEC = 60    # total nominal cycle length
 
+# Test 0 (steady-state endurance) timing - no reboot/restart trigger at all,
+# just a passive check on a fixed cadence, to catch slow-building problems a
+# constantly-restarting stress loop would mask by resetting state every cycle.
+NONE_CYCLE_LENGTH_SEC = 300     # Test 0: 5-minute steady-state cycle
+
 COLUMNS = [
     "Run ID", "Cycle", "Timestamp", "Unit", "Action", "Reachable at checkpoint", "Unreachable Reason",
     "Seek Camera Enumeration", "Enum Fail Time (s since boot)",
@@ -291,7 +296,7 @@ STATUS_DIR = WWW_ROOT / "status"
 DASHBOARD_PATH = WWW_ROOT / "dashboard.html"
 
 
-def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields):
+def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields, log_path):
     """Each of the (up to) 4 running processes owns exactly one file here -
     no write contention, no locking needed. The dashboard is rebuilt by
     reading whichever snapshot files currently exist, so it stays fresh as
@@ -304,6 +309,7 @@ def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, r
         "action": action,
         "run_id": run_id,
         "cycle": cycle_num,
+        "log_path": str(log_path),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "reachable": reachable,
         "seek_enumeration": fields.get("SEEK_ENUMERATION", ""),
@@ -321,6 +327,65 @@ def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, r
     tmp = STATUS_DIR / f"{unit_label}.json.tmp"
     tmp.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
     tmp.replace(STATUS_DIR / f"{unit_label}.json")  # atomic - dashboard render never sees a half-written file
+
+
+def _dashboard_unit_charts(log_path, run_id):
+    """Reads a unit's own log file back, filtered to the current run, and
+    builds the same reachability strips / line charts generate_run_report()
+    produces for a finished run - but live, on whatever rows exist so far.
+    Returns "" (caller falls back to a placeholder) if the log isn't there
+    yet or has fewer than 2 rows for this run - a single point can't show a
+    trend, and the very first cycle of a fresh run hits this every time."""
+    try:
+        wb = openpyxl.load_workbook(log_path, read_only=True, data_only=True)
+        ws = wb.active
+        header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        run_id_idx = header.index("Run ID")
+        rows = [r for r in ws.iter_rows(min_row=2, values_only=True) if r[run_id_idx] == run_id]
+        wb.close()
+    except (OSError, KeyError, ValueError, StopIteration):
+        return ""
+    if len(rows) < 2:
+        return ""
+
+    timestamp_idx = header.index("Timestamp")
+    reachable_col = header.index("Reachable at checkpoint")
+    timestamps = [datetime.strptime(r[timestamp_idx], "%Y-%m-%d %H:%M:%S") for r in rows]
+    reachable_flags = [r[reachable_col] == "Yes" for r in rows]
+
+    def col(col_name):
+        return [r[header.index(col_name)] for r in rows]
+
+    def numeric_series(col_name):
+        idx = header.index(col_name)
+        out = []
+        for r in rows:
+            try:
+                out.append(float(r[idx]))
+            except (TypeError, ValueError):
+                out.append(None)
+        return out
+
+    def make_states(raw_values, reachable, is_ok):
+        states = []
+        for v, r in zip(raw_values, reachable):
+            if not r or v in (None, ""):
+                states.append("blip")
+            else:
+                states.append("ok" if is_ok(v) else "fail")
+        return states
+
+    seek_states = make_states(col("Seek Camera Enumeration"), reachable_flags, lambda v: v == "OK")
+    image_states = make_states(col("image.pgm Healthy"), reachable_flags, lambda v: v == "Yes")
+
+    html = _reachability_strip(timestamps, ["ok" if r else "fail" for r in reachable_flags], "Reachable at checkpoint")
+    html += "\n" + _reachability_strip(timestamps, seek_states, "Seek Camera Enumeration (green=OK, red=FAILED, gray=no data)")
+    html += "\n" + _reachability_strip(timestamps, image_states, "image.pgm Healthy (green=Yes, red=No, gray=no data)")
+    for col_name, color in (("CPU Temp (C)", "#e65100"), ("Total CPU %", "#00838f")):
+        html += "\n" + _svg_line_chart(col_name, timestamps, numeric_series(col_name), color)
+    for col_name, color in (("USB Communication Errors", "#1565c0"), ("USB Resets", "#6a1b9a"), ("Ethernet Flap Count", "#2e7d32")):
+        html += "\n" + _svg_line_chart(col_name, timestamps, numeric_series(col_name), color, zero_floor=True)
+    return html
 
 
 def render_dashboard():
@@ -360,14 +425,28 @@ def render_dashboard():
   <td class="{status_class}">{esc(status_text)}</td>
 </tr>'''
 
+    trends_html = ""
+    for s in snapshots:
+        log_path = s.get("log_path")
+        run_id = s.get("run_id")
+        if not log_path or not run_id:
+            continue
+        charts = _dashboard_unit_charts(log_path, run_id)
+        trends_html += f'''<section class="unit-trends">
+<h2>{esc(s.get("unit"))} trends</h2>
+{charts if charts else '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'}
+</section>
+'''
+
     html = f'''<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>Reboot Loop Test - Live Status</title>
+<title>Pipeline Test - Live Status</title>
 <style>
   body {{ font-family: Arial, sans-serif; margin: 24px; color: #222; }}
   h1 {{ font-size: 18px; }}
+  h2 {{ font-size: 15px; border-top: 2px solid #eee; padding-top: 18px; margin-top: 28px; }}
   .updated {{ color: #777; font-size: 12px; margin-bottom: 16px; }}
   table {{ border-collapse: collapse; width: 100%; font-size: 13px; }}
   th, td {{ padding: 6px 10px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }}
@@ -376,10 +455,13 @@ def render_dashboard():
   .ok {{ color: #2e7d32; }}
   .bad {{ color: #c62828; font-weight: bold; }}
   .empty {{ color: #999; }}
+  .chart {{ margin-bottom: 22px; max-width: 760px; }}
+  .chart h3 {{ margin: 0 0 6px 0; font-size: 13px; color: #444; }}
+  section.unit-trends {{ margin-top: 8px; }}
 </style>
 </head>
 <body>
-<h1>Reboot Loop Test - Live Status</h1>
+<h1>Pipeline Test - Live Status</h1>
 <div class="updated">Rewritten fresh every cycle by whichever unit finishes next - reload this page (F5) to see the latest. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
 {'<p class="empty">No status snapshots yet - waiting for the first cycle to complete.</p>' if not snapshots else f"""<table>
 <tr><th>Unit</th><th>IP</th><th>Pipeline</th><th>Action</th><th>Cycle</th><th>Last Update</th>
@@ -387,6 +469,7 @@ def render_dashboard():
 <th>Wrapper Alive</th><th>CPU %</th><th>CPU Temp</th><th>Throttled</th><th>Status</th></tr>
 {rows_html}
 </table>"""}
+{trends_html}
 </body>
 </html>
 '''
@@ -404,7 +487,7 @@ def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipelin
         print(f"  sleeping to T+{REBOOT_CHECK_INTERVAL_SEC}s...")
         time.sleep(REBOOT_CHECK_INTERVAL_SEC)
         checkpoint_desc = f"T+{REBOOT_CHECK_INTERVAL_SEC}s"
-    else:  # restart
+    elif action == "restart":
         restart_label = "pipeline_restart.sh" if pipeline == "old" else "systemctl restart seekcamera-gstreamer"
         ok, restart_out = trigger_restart_blocking(ip, user, password, pipeline)
         if not ok:
@@ -412,6 +495,8 @@ def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipelin
         else:
             print(f"  {restart_label} completed")
         checkpoint_desc = f"immediately after {restart_label} returned"
+    else:  # none - Test 0, steady-state, no action taken at all
+        checkpoint_desc = "passive check, no reboot/restart triggered"
 
     reachable = False
     reason = ""
@@ -463,13 +548,14 @@ def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipelin
         fields.get("DMESG_TAIL", ""),
     ]
     log_row(log_path, row, reachable)
-    write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields)
+    write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields, log_path)
     render_dashboard()
 
     # pad to the nominal total cycle length before the next action fires - uses
     # the real elapsed time for this cycle (not a guess), so cadence stays
     # accurate over long runs instead of drifting
-    target = REBOOT_CYCLE_LENGTH_SEC if action == "reboot" else RESTART_CYCLE_LENGTH_SEC
+    target = {"reboot": REBOOT_CYCLE_LENGTH_SEC, "restart": RESTART_CYCLE_LENGTH_SEC,
+               "none": NONE_CYCLE_LENGTH_SEC}[action]
     elapsed = time.monotonic() - cycle_start
     remaining = target - elapsed
     if remaining > 0:
@@ -1043,8 +1129,9 @@ def main():
     parser.add_argument("--user", default="camera")
     parser.add_argument("--password", required=True)
     parser.add_argument("--unit", required=True, help='e.g. "PT" or "PT RamOS"')
-    parser.add_argument("--action", choices=["reboot", "restart"], required=True,
-                         help="reboot = Test 1 (2-min cycle), restart = Test 2, pipeline_restart.sh (60s cycle)")
+    parser.add_argument("--action", choices=["reboot", "restart", "none"], required=True,
+                         help="reboot = Test 1 (2-min cycle), restart = Test 2, pipeline_restart.sh (60s cycle), "
+                              "none = Test 0 steady-state (5-min cycle, passive check only, no action triggered)")
     parser.add_argument("--pipeline", choices=["old", "new"], required=True,
                          help="which pipeline this device is running - determines the restart "
                               "command for --action restart (old: pipeline_restart.sh, "
