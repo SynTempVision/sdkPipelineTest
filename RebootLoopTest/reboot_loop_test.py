@@ -330,13 +330,39 @@ def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, r
     return snapshot
 
 
-def _dashboard_unit_charts(log_path, run_id):
+_TRENDED_METRICS = [
+    # (column name, color, zero_floor) - zero_floor for event counts that
+    # can't go negative (an occasional spike should read as a spike off a
+    # true zero baseline, not as "wandering" within an auto-scaled range).
+    ("Total CPU %", "#00838f", False),
+    ("Pipeline CPU %", "#558b2f", False),
+    ("CPU Temp (C)", "#e65100", False),
+    ("Uptime (Hours)", "#8e24aa", False),
+    ("Pipeline Restarts (24h)", "#ef6c00", True),
+    ("Self-Recovered Errors (24h)", "#3949ab", True),
+    ("USB Communication Errors", "#1565c0", True),
+    ("USB Resets", "#6a1b9a", True),
+    ("Ethernet Flap Count", "#2e7d32", True),
+]
+
+
+def _unit_trend_htmls(log_path, run_id, combined_width=760, combined_height=260):
     """Reads a unit's own log file back, filtered to the current run, and
-    builds the same reachability strips / line charts generate_run_report()
-    produces for a finished run - but live, on whatever rows exist so far.
-    Returns "" (caller falls back to a placeholder) if the log isn't there
-    yet or has fewer than 2 rows for this run - a single point can't show a
-    trend, and the very first cycle of a fresh run hits this every time."""
+    builds the live trend views generate_run_report() produces for a
+    finished run - but on whatever rows exist so far. Returns
+    (strips_html, combined_html), each "" if the log isn't there yet or has
+    fewer than 2 rows for this run (a single point can't show a trend, and
+    the very first cycle of a fresh run hits this every time).
+
+    strips_html: the categorical reachable/Seek/image.pgm pass-fail strips
+    - only meaningful on the per-unit detail page, not compact enough for
+    the 4-way overview grid.
+
+    combined_html: every trended numeric stat (see _TRENDED_METRICS) on one
+    shared chart, independently normalized so unlike scales (CPU %, CPU
+    Temp in C, event counts, uptime in hours) can share an axis - used by
+    both the overview's small per-unit graph and the bigger one on the
+    detail page, just at different sizes."""
     try:
         wb = openpyxl.load_workbook(log_path, read_only=True, data_only=True)
         ws = wb.active
@@ -345,9 +371,9 @@ def _dashboard_unit_charts(log_path, run_id):
         rows = [r for r in ws.iter_rows(min_row=2, values_only=True) if r[run_id_idx] == run_id]
         wb.close()
     except (OSError, KeyError, ValueError, StopIteration):
-        return ""
+        return "", ""
     if len(rows) < 2:
-        return ""
+        return "", ""
 
     timestamp_idx = header.index("Timestamp")
     reachable_col = header.index("Reachable at checkpoint")
@@ -358,6 +384,8 @@ def _dashboard_unit_charts(log_path, run_id):
         return [r[header.index(col_name)] for r in rows]
 
     def numeric_series(col_name):
+        if col_name not in header:
+            return [None] * len(rows)  # older log predating this column - treat as no data, not a crash
         idx = header.index(col_name)
         out = []
         for r in rows:
@@ -379,14 +407,16 @@ def _dashboard_unit_charts(log_path, run_id):
     seek_states = make_states(col("Seek Camera Enumeration"), reachable_flags, lambda v: v == "OK")
     image_states = make_states(col("image.pgm Healthy"), reachable_flags, lambda v: v == "Yes")
 
-    html = _reachability_strip(timestamps, ["ok" if r else "fail" for r in reachable_flags], "Reachable at checkpoint")
-    html += "\n" + _reachability_strip(timestamps, seek_states, "Seek Camera Enumeration (green=OK, red=FAILED, gray=no data)")
-    html += "\n" + _reachability_strip(timestamps, image_states, "image.pgm Healthy (green=Yes, red=No, gray=no data)")
-    for col_name, color in (("CPU Temp (C)", "#e65100"), ("Total CPU %", "#00838f")):
-        html += "\n" + _svg_line_chart(col_name, timestamps, numeric_series(col_name), color)
-    for col_name, color in (("USB Communication Errors", "#1565c0"), ("USB Resets", "#6a1b9a"), ("Ethernet Flap Count", "#2e7d32")):
-        html += "\n" + _svg_line_chart(col_name, timestamps, numeric_series(col_name), color, zero_floor=True)
-    return html
+    strips_html = _reachability_strip(timestamps, ["ok" if r else "fail" for r in reachable_flags], "Reachable at checkpoint")
+    strips_html += "\n" + _reachability_strip(timestamps, seek_states, "Seek Camera Enumeration (green=OK, red=FAILED, gray=no data)")
+    strips_html += "\n" + _reachability_strip(timestamps, image_states, "image.pgm Healthy (green=Yes, red=No, gray=no data)")
+
+    series = [(name, color, numeric_series(name), zero_floor) for name, color, zero_floor in _TRENDED_METRICS]
+    combined_html = _svg_multi_line_chart(
+        "All stats (each line normalized 0-100% of its own range - hover a point for the real value)",
+        timestamps, series, width=combined_width, height=combined_height,
+    )
+    return strips_html, combined_html
 
 
 _DASHBOARD_CSS = '''
@@ -405,9 +435,20 @@ _DASHBOARD_CSS = '''
   .empty { color: #999; }
   .chart { margin-bottom: 22px; max-width: 760px; }
   .chart h3 { margin: 0 0 6px 0; font-size: 13px; color: #444; }
+  .legend { font-size: 11px; margin-bottom: 4px; }
+  .legend-item { display: inline-flex; align-items: center; margin-right: 12px; color: #444; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
   dl.summary { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13px; max-width: 640px; }
   dl.summary dt { color: #666; }
   dl.summary dd { margin: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cell { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 14px; min-width: 0; }
+  .cell h2 { margin: 0 0 6px 0; padding: 0; border: none; font-size: 15px; }
+  .cell h2 a { text-decoration: none; }
+  .cell .chart { margin-bottom: 6px; max-width: none; }
+  .cell-stats { font-size: 12px; color: #444; margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .cell-stats b { color: #222; }
+  @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
 '''
 
 
@@ -426,11 +467,10 @@ def render_unit_detail(snapshot):
     status_class = "ok" if (reachable_ok and (not status_text or status_text == "PIPELINE HEALTHY")) else "bad"
     img_class = "ok" if s.get("image_healthy") else "bad"
 
-    charts = ""
+    strips, combined = "", ""
     if s.get("log_path") and s.get("run_id"):
-        charts = _dashboard_unit_charts(s["log_path"], s["run_id"])
-    if not charts:
-        charts = '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'
+        strips, combined = _unit_trend_htmls(s["log_path"], s["run_id"])
+    charts = (strips + "\n" + combined) if (strips or combined) else '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'
 
     html = f'''<!doctype html>
 <html>
@@ -469,6 +509,11 @@ def render_unit_detail(snapshot):
 
 
 def render_dashboard():
+    """One-screen 2x2 grid, one cell per unit - a compact stat line plus
+    that unit's combined trend graph, sized down (see _unit_trend_htmls'
+    combined_width/height) so all 4 fit without scrolling on a normal
+    monitor. Full detail (the categorical strips, every raw field) lives
+    one click away on each unit's own page - see render_unit_detail()."""
     snapshots = []
     if STATUS_DIR.exists():
         for f in sorted(STATUS_DIR.glob("*.json")):
@@ -477,31 +522,33 @@ def render_dashboard():
             except (json.JSONDecodeError, OSError):
                 continue  # skip a snapshot caught mid-write rather than crash the whole dashboard
 
-    rows_html = ""
+    cells_html = ""
     for s in snapshots:
         reachable_ok = s.get("reachable") is True
         status_text = s.get("status") or ("" if reachable_ok else "UNREACHABLE")
         status_class = "ok" if (reachable_ok and (not status_text or status_text == "PIPELINE HEALTHY")) else "bad"
         img_class = "ok" if s.get("image_healthy") else "bad"
         detail_href = _unit_detail_filename(s.get("unit"))
-        rows_html += f'''<tr>
-  <td class="unit"><a href="{detail_href}">{_esc(s.get("unit"))}</a></td>
-  <td>{_esc(s.get("ip"))}</td>
-  <td>{_esc(s.get("pipeline"))}</td>
-  <td>{_esc(s.get("action"))}</td>
-  <td>{_esc(s.get("cycle"))}</td>
-  <td>{_esc(s.get("timestamp"))}</td>
-  <td class="{'ok' if reachable_ok else 'bad'}">{"Yes" if reachable_ok else "No"}</td>
-  <td class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{_esc(s.get("seek_enumeration"))}</td>
-  <td class="{img_class}">{_esc(s.get("image_desc"))}</td>
-  <td>{_esc(s.get("pipeline_restarts"))}</td>
-  <td>{_esc(s.get("self_recovered"))}</td>
-  <td>{_esc(s.get("wrapper_alive"))}</td>
-  <td>{_esc(s.get("cpu_pct"))}%</td>
-  <td>{_esc(s.get("cpu_temp"))}&deg;C</td>
-  <td>{_esc(s.get("throttled_meaning"))}</td>
-  <td class="{status_class}">{_esc(status_text)}</td>
-</tr>'''
+
+        combined = ""
+        if s.get("log_path") and s.get("run_id"):
+            _, combined = _unit_trend_htmls(s["log_path"], s["run_id"], combined_width=560, combined_height=190)
+        if not combined:
+            combined = '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'
+
+        cells_html += f'''<div class="cell">
+  <h2><a href="{detail_href}">{_esc(s.get("unit"))}</a></h2>
+  <div class="cell-stats">
+    <span><b>{_esc(s.get("pipeline"))}</b> pipeline</span>
+    <span>Cycle <b>{_esc(s.get("cycle"))}</b></span>
+    <span>Reachable <b class="{'ok' if reachable_ok else 'bad'}">{"Yes" if reachable_ok else "No"}</b></span>
+    <span>Seek <b class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{_esc(s.get("seek_enumeration"))}</b></span>
+    <span>image.pgm <b class="{img_class}">{"OK" if s.get("image_healthy") else "BAD"}</b></span>
+    <span>CPU <b>{_esc(s.get("cpu_pct"))}%</b> / <b>{_esc(s.get("cpu_temp"))}&deg;C</b></span>
+    <span class="{status_class}">{_esc(status_text)}</span>
+  </div>
+  {combined}
+</div>'''
 
     html = f'''<!doctype html>
 <html>
@@ -512,13 +559,8 @@ def render_dashboard():
 </head>
 <body>
 <h1>Pipeline Test - Live Status</h1>
-<div class="updated">Rewritten fresh every cycle by whichever unit finishes next - reload this page (F5) to see the latest. Click a unit for its individual trend charts. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
-{'<p class="empty">No status snapshots yet - waiting for the first cycle to complete.</p>' if not snapshots else f"""<table>
-<tr><th>Unit</th><th>IP</th><th>Pipeline</th><th>Action</th><th>Cycle</th><th>Last Update</th>
-<th>Reachable</th><th>Seek Enum</th><th>image.pgm</th><th>Restarts (24h)</th><th>Self-Recovered</th>
-<th>Wrapper Alive</th><th>CPU %</th><th>CPU Temp</th><th>Throttled</th><th>Status</th></tr>
-{rows_html}
-</table>"""}
+<div class="updated">Rewritten fresh every cycle by whichever unit finishes next - reload this page (F5) to see the latest. Click a unit for its full detail page. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
+{'<p class="empty">No status snapshots yet - waiting for the first cycle to complete.</p>' if not snapshots else f'<div class="grid">{cells_html}</div>'}
 </body>
 </html>
 '''
@@ -759,6 +801,104 @@ def _svg_line_chart(title, timestamps, values, color, width=760, height=170, zer
 </div>'''
 
 
+def _svg_multi_line_chart(title, timestamps, series, width=760, height=260):
+    """Same dependency-free approach as _svg_line_chart, but plots several
+    stats on one shared chart instead of one chart per stat.
+
+    series: list of (label, color, raw_values, zero_floor) tuples, each
+    raw_values aligned 1:1 with timestamps. Stats this different in scale -
+    CPU % (0-100), CPU Temp in C (~50-70), event counts (0-a few), uptime
+    in hours (climbs into the hundreds) - can't share a literal y-axis, so
+    each series is independently min-max normalized to 0-100% of its own
+    range before plotting. That axis has no real unit of its own; every
+    plotted point's native SVG <title> tooltip carries the real,
+    unnormalized value instead, so hovering still tells you the actual
+    number. A series with no real data at all for this unit/run (e.g.
+    Self-Recovered Errors is always "n/a" on an old-pipeline unit) is
+    silently skipped - not drawn, not legended - rather than showing a dead
+    flat line."""
+    pad_l, pad_r, pad_t, pad_b = 40, 20, 14, 34
+    plot_w = width - pad_l - pad_r
+    plot_h = height - pad_t - pad_b
+
+    if not timestamps:
+        return f'<div class="chart"><h3>{title}</h3><p class="empty">No data</p></div>'
+
+    t_min, t_max = min(timestamps), max(timestamps)
+    t_span = (t_max - t_min).total_seconds() or 1
+
+    def sx(t):
+        return pad_l + (t - t_min).total_seconds() / t_span * plot_w
+
+    def sy(norm_v):
+        return pad_t + plot_h - norm_v / 100 * plot_h
+
+    legend_items, polylines, points = "", "", ""
+    for label, color, raw, zero_floor in series:
+        known = [v for v in raw if v is not None]
+        if not known:
+            continue
+        if zero_floor:
+            lo, hi = 0, max(known)
+            if hi <= 0:
+                hi = 1
+        else:
+            lo, hi = min(known), max(known)
+            if lo == hi:
+                lo -= 1
+                hi += 1
+        span = hi - lo
+
+        segments, current = [], []
+        for t, v in zip(timestamps, raw):
+            if v is None:
+                if current:
+                    segments.append(current)
+                    current = []
+                continue
+            current.append((t, v, (v - lo) / span * 100))
+        if current:
+            segments.append(current)
+
+        polylines += "\n".join(
+            '<polyline points="{}" fill="none" stroke="{}" stroke-width="2"/>'.format(
+                " ".join(f"{sx(t):.1f},{sy(n):.1f}" for t, v, n in seg), color
+            )
+            for seg in segments
+        ) + "\n"
+        points += "\n".join(
+            f'<circle cx="{sx(t):.1f}" cy="{sy(n):.1f}" r="5" fill="transparent">'
+            f'<title>{label}: {v:g} @ {_fmt_dt(t)}</title></circle>'
+            for seg in segments for t, v, n in seg
+        ) + "\n"
+        legend_items += f'<span class="legend-item"><span class="swatch" style="background:{color}"></span>{label}</span>'
+
+    if not legend_items:
+        return f'<div class="chart"><h3>{title}</h3><p class="empty">No data</p></div>'
+
+    gridlines = ""
+    for frac, label in ((0, "0%"), (0.5, "50%"), (1, "100%")):
+        y = pad_t + plot_h * (1 - frac)
+        gridlines += (
+            f'<line x1="{pad_l}" y1="{y:.1f}" x2="{width - pad_r}" y2="{y:.1f}" '
+            f'stroke="#e0e0e0" stroke-width="1"/>\n'
+            f'<text x="{pad_l - 6}" y="{y + 4:.1f}" font-size="10" text-anchor="end" fill="#666">{label}</text>\n'
+        )
+
+    xticks = _x_ticks(t_min, t_span, pad_l, plot_w, plot_h, pad_t)
+
+    return f'''<div class="chart">
+  <h3>{title}</h3>
+  <div class="legend">{legend_items}</div>
+  <svg viewBox="0 0 {width} {height}" width="100%" height="{height}">
+    {gridlines}
+    {xticks}
+    {polylines}
+    {points}
+  </svg>
+</div>'''
+
+
 _STATE_COLORS = {"ok": "#4caf50", "fail": "#e53935", "blip": "#bdbdbd"}
 
 
@@ -846,6 +986,8 @@ def generate_run_report(log_path, run_id, unit_label, action):
         return [r[header.index(col_name)] for r in rows]
 
     def numeric_series(col_name):
+        if col_name not in header:
+            return [None] * len(rows)  # older log predating this column - treat as no data, not a crash
         idx = header.index(col_name)
         out = []
         for r in rows:
