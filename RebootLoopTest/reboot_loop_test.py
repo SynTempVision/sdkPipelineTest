@@ -327,6 +327,7 @@ def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, r
     tmp = STATUS_DIR / f"{unit_label}.json.tmp"
     tmp.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
     tmp.replace(STATUS_DIR / f"{unit_label}.json")  # atomic - dashboard render never sees a half-written file
+    return snapshot
 
 
 def _dashboard_unit_charts(log_path, run_id):
@@ -388,6 +389,85 @@ def _dashboard_unit_charts(log_path, run_id):
     return html
 
 
+_DASHBOARD_CSS = '''
+  body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
+  h1 { font-size: 18px; }
+  h2 { font-size: 15px; border-top: 2px solid #eee; padding-top: 18px; margin-top: 28px; }
+  a { color: #1565c0; }
+  .updated { color: #777; font-size: 12px; margin-bottom: 16px; }
+  .back { display: inline-block; margin-bottom: 14px; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+  th { background: #f5f5f5; position: sticky; top: 0; }
+  td.unit { font-weight: bold; }
+  .ok { color: #2e7d32; }
+  .bad { color: #c62828; font-weight: bold; }
+  .empty { color: #999; }
+  .chart { margin-bottom: 22px; max-width: 760px; }
+  .chart h3 { margin: 0 0 6px 0; font-size: 13px; color: #444; }
+  dl.summary { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 13px; max-width: 640px; }
+  dl.summary dt { color: #666; }
+  dl.summary dd { margin: 0; }
+'''
+
+
+def _unit_detail_filename(unit_label):
+    return f"unit_{_sanitize_for_path(unit_label)}.html"
+
+
+def render_unit_detail(snapshot):
+    """One standalone page per unit - the drill-down target when you click a
+    unit on the overview table. Each process only ever owns its own unit's
+    snapshot, so it only ever writes its own detail page here; no cross-
+    process file contention, same as write_status_snapshot()."""
+    s = snapshot
+    reachable_ok = s.get("reachable") is True
+    status_text = s.get("status") or ("" if reachable_ok else "UNREACHABLE")
+    status_class = "ok" if (reachable_ok and (not status_text or status_text == "PIPELINE HEALTHY")) else "bad"
+    img_class = "ok" if s.get("image_healthy") else "bad"
+
+    charts = ""
+    if s.get("log_path") and s.get("run_id"):
+        charts = _dashboard_unit_charts(s["log_path"], s["run_id"])
+    if not charts:
+        charts = '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'
+
+    html = f'''<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{_esc(s.get("unit"))} - Pipeline Test</title>
+<style>{_DASHBOARD_CSS}</style>
+</head>
+<body>
+<a class="back" href="dashboard.html">&larr; back to all units</a>
+<h1>{_esc(s.get("unit"))}</h1>
+<div class="updated">Rewritten fresh every cycle - reload this page (F5) to see the latest. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
+<dl class="summary">
+  <dt>IP</dt><dd>{_esc(s.get("ip"))}</dd>
+  <dt>Pipeline</dt><dd>{_esc(s.get("pipeline"))}</dd>
+  <dt>Action</dt><dd>{_esc(s.get("action"))}</dd>
+  <dt>Cycle</dt><dd>{_esc(s.get("cycle"))}</dd>
+  <dt>Last Update</dt><dd>{_esc(s.get("timestamp"))}</dd>
+  <dt>Reachable</dt><dd class="{'ok' if reachable_ok else 'bad'}">{"Yes" if reachable_ok else "No"}</dd>
+  <dt>Seek Enum</dt><dd class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{_esc(s.get("seek_enumeration"))}</dd>
+  <dt>image.pgm</dt><dd class="{img_class}">{_esc(s.get("image_desc"))}</dd>
+  <dt>Restarts (24h)</dt><dd>{_esc(s.get("pipeline_restarts"))}</dd>
+  <dt>Self-Recovered</dt><dd>{_esc(s.get("self_recovered"))}</dd>
+  <dt>Wrapper Alive</dt><dd>{_esc(s.get("wrapper_alive"))}</dd>
+  <dt>CPU %</dt><dd>{_esc(s.get("cpu_pct"))}%</dd>
+  <dt>CPU Temp</dt><dd>{_esc(s.get("cpu_temp"))}&deg;C</dd>
+  <dt>Throttled</dt><dd>{_esc(s.get("throttled_meaning"))}</dd>
+  <dt>Status</dt><dd class="{status_class}">{_esc(status_text)}</dd>
+</dl>
+<h2>Trends</h2>
+{charts}
+</body>
+</html>
+'''
+    (WWW_ROOT / _unit_detail_filename(s.get("unit"))).write_text(html, encoding="utf-8")
+
+
 def render_dashboard():
     snapshots = []
     if STATUS_DIR.exists():
@@ -397,79 +477,48 @@ def render_dashboard():
             except (json.JSONDecodeError, OSError):
                 continue  # skip a snapshot caught mid-write rather than crash the whole dashboard
 
-    def esc(s):
-        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
     rows_html = ""
     for s in snapshots:
         reachable_ok = s.get("reachable") is True
         status_text = s.get("status") or ("" if reachable_ok else "UNREACHABLE")
         status_class = "ok" if (reachable_ok and (not status_text or status_text == "PIPELINE HEALTHY")) else "bad"
         img_class = "ok" if s.get("image_healthy") else "bad"
+        detail_href = _unit_detail_filename(s.get("unit"))
         rows_html += f'''<tr>
-  <td class="unit">{esc(s.get("unit"))}</td>
-  <td>{esc(s.get("ip"))}</td>
-  <td>{esc(s.get("pipeline"))}</td>
-  <td>{esc(s.get("action"))}</td>
-  <td>{esc(s.get("cycle"))}</td>
-  <td>{esc(s.get("timestamp"))}</td>
+  <td class="unit"><a href="{detail_href}">{_esc(s.get("unit"))}</a></td>
+  <td>{_esc(s.get("ip"))}</td>
+  <td>{_esc(s.get("pipeline"))}</td>
+  <td>{_esc(s.get("action"))}</td>
+  <td>{_esc(s.get("cycle"))}</td>
+  <td>{_esc(s.get("timestamp"))}</td>
   <td class="{'ok' if reachable_ok else 'bad'}">{"Yes" if reachable_ok else "No"}</td>
-  <td class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{esc(s.get("seek_enumeration"))}</td>
-  <td class="{img_class}">{esc(s.get("image_desc"))}</td>
-  <td>{esc(s.get("pipeline_restarts"))}</td>
-  <td>{esc(s.get("self_recovered"))}</td>
-  <td>{esc(s.get("wrapper_alive"))}</td>
-  <td>{esc(s.get("cpu_pct"))}%</td>
-  <td>{esc(s.get("cpu_temp"))}&deg;C</td>
-  <td>{esc(s.get("throttled_meaning"))}</td>
-  <td class="{status_class}">{esc(status_text)}</td>
+  <td class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{_esc(s.get("seek_enumeration"))}</td>
+  <td class="{img_class}">{_esc(s.get("image_desc"))}</td>
+  <td>{_esc(s.get("pipeline_restarts"))}</td>
+  <td>{_esc(s.get("self_recovered"))}</td>
+  <td>{_esc(s.get("wrapper_alive"))}</td>
+  <td>{_esc(s.get("cpu_pct"))}%</td>
+  <td>{_esc(s.get("cpu_temp"))}&deg;C</td>
+  <td>{_esc(s.get("throttled_meaning"))}</td>
+  <td class="{status_class}">{_esc(status_text)}</td>
 </tr>'''
-
-    trends_html = ""
-    for s in snapshots:
-        log_path = s.get("log_path")
-        run_id = s.get("run_id")
-        if not log_path or not run_id:
-            continue
-        charts = _dashboard_unit_charts(log_path, run_id)
-        trends_html += f'''<section class="unit-trends">
-<h2>{esc(s.get("unit"))} trends</h2>
-{charts if charts else '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'}
-</section>
-'''
 
     html = f'''<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>Pipeline Test - Live Status</title>
-<style>
-  body {{ font-family: Arial, sans-serif; margin: 24px; color: #222; }}
-  h1 {{ font-size: 18px; }}
-  h2 {{ font-size: 15px; border-top: 2px solid #eee; padding-top: 18px; margin-top: 28px; }}
-  .updated {{ color: #777; font-size: 12px; margin-bottom: 16px; }}
-  table {{ border-collapse: collapse; width: 100%; font-size: 13px; }}
-  th, td {{ padding: 6px 10px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }}
-  th {{ background: #f5f5f5; position: sticky; top: 0; }}
-  td.unit {{ font-weight: bold; }}
-  .ok {{ color: #2e7d32; }}
-  .bad {{ color: #c62828; font-weight: bold; }}
-  .empty {{ color: #999; }}
-  .chart {{ margin-bottom: 22px; max-width: 760px; }}
-  .chart h3 {{ margin: 0 0 6px 0; font-size: 13px; color: #444; }}
-  section.unit-trends {{ margin-top: 8px; }}
-</style>
+<style>{_DASHBOARD_CSS}</style>
 </head>
 <body>
 <h1>Pipeline Test - Live Status</h1>
-<div class="updated">Rewritten fresh every cycle by whichever unit finishes next - reload this page (F5) to see the latest. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
+<div class="updated">Rewritten fresh every cycle by whichever unit finishes next - reload this page (F5) to see the latest. Click a unit for its individual trend charts. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
 {'<p class="empty">No status snapshots yet - waiting for the first cycle to complete.</p>' if not snapshots else f"""<table>
 <tr><th>Unit</th><th>IP</th><th>Pipeline</th><th>Action</th><th>Cycle</th><th>Last Update</th>
 <th>Reachable</th><th>Seek Enum</th><th>image.pgm</th><th>Restarts (24h)</th><th>Self-Recovered</th>
 <th>Wrapper Alive</th><th>CPU %</th><th>CPU Temp</th><th>Throttled</th><th>Status</th></tr>
 {rows_html}
 </table>"""}
-{trends_html}
 </body>
 </html>
 '''
@@ -548,7 +597,8 @@ def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipelin
         fields.get("DMESG_TAIL", ""),
     ]
     log_row(log_path, row, reachable)
-    write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields, log_path)
+    snapshot = write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields, log_path)
+    render_unit_detail(snapshot)
     render_dashboard()
 
     # pad to the nominal total cycle length before the next action fires - uses
@@ -567,7 +617,7 @@ def _sanitize_for_path(s: str) -> str:
 
 
 def _esc(s):
-    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return str(s if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _fmt_dt(t):
