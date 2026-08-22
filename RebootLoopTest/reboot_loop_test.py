@@ -508,6 +508,17 @@ def render_unit_detail(snapshot):
     (WWW_ROOT / _unit_detail_filename(s.get("unit"))).write_text(html, encoding="utf-8")
 
 
+def _unit_sort_key(unit_label):
+    """Pairs each old/new unit onto one row - new-pipeline unit on the left,
+    its old-pipeline counterpart on the right (e.g. PT0.1NEW, PT0.1, then
+    PT0.2NEW, PT0.2) - so the two units under direct comparison sit side by
+    side instead of scattered across the grid by alphabetical filename."""
+    m = re.match(r"PT(\d+(?:\.\d+)?)(NEW)?", unit_label)
+    if not m:
+        return (999, 0, unit_label)
+    return (float(m.group(1)), 0 if m.group(2) else 1, unit_label)
+
+
 def render_dashboard():
     """One-screen 2x2 grid, one cell per unit - a compact stat line plus
     that unit's combined trend graph, sized down (see _unit_trend_htmls'
@@ -521,6 +532,7 @@ def render_dashboard():
                 snapshots.append(json.loads(f.read_text(encoding="utf-8")))
             except (json.JSONDecodeError, OSError):
                 continue  # skip a snapshot caught mid-write rather than crash the whole dashboard
+    snapshots.sort(key=lambda s: _unit_sort_key(s.get("unit", "")))
 
     cells_html = ""
     for s in snapshots:
