@@ -322,6 +322,7 @@ def write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, r
         "wrapper_alive": fields.get("WRAPPER_ALIVE", ""),
         "cpu_pct": fields.get("TOTAL_CPU_PCT", ""),
         "cpu_temp": fields.get("TEMP_C", ""),
+        "uptime_hours": _uptime_hours(fields.get("UPTIME_SEC", "")),
         "throttled_meaning": decode_throttled(fields.get("THROTTLED", "")),
         "status": fields.get("STATUS", ""),
     }

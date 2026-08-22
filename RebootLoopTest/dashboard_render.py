@@ -33,6 +33,18 @@ def _esc(s):
     return str(s if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _fmt_snapshot_ts(ts_str):
+    """Snapshot JSON stores "timestamp" as %Y-%m-%d %H:%M:%S (sortable,
+    unambiguous for programmatic use); this reformats it for display as
+    requested - MMMDDYY (e.g. Aug2126) plus time, so "Last Update" reads
+    clearly on the multi-day detail page without a stray "2026-08-21" ISO
+    date. Falls back to the raw string if it doesn't parse as expected."""
+    try:
+        return datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").strftime("%b%d%y %H:%M:%S")
+    except (TypeError, ValueError):
+        return ts_str or ""
+
+
 def _fmt_dt(t):
     """Display-only date format (month/day/year) - the master log itself
     keeps storing/parsing timestamps as %Y-%m-%d for sortability and so
@@ -54,7 +66,7 @@ def _x_ticks(t_min, t_span_sec, pad_l, plot_w, plot_h, y_top, n=5):
         t = t_min + timedelta(seconds=t_span_sec * frac)
         x = pad_l + frac * plot_w
         anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
-        label = t.strftime("%H:%M:%S")
+        label = t.strftime("%m/%d %H:%M:%S")
         if i == 0:
             label = f"test start {label}"
         elif i == n - 1:
@@ -293,7 +305,6 @@ _TRENDED_METRICS = [
     ("Total CPU %", "#00838f", False),
     ("Pipeline CPU %", "#558b2f", False),
     ("CPU Temp (C)", "#e65100", False),
-    ("Uptime (Hours)", "#8e24aa", False),
     ("Pipeline Restarts (24h)", "#ef6c00", True),
     ("Self-Recovered Errors (24h)", "#3949ab", True),
     ("USB Communication Errors", "#1565c0", True),
@@ -306,9 +317,10 @@ def _unit_trend_htmls(log_path, run_id, combined_width=760, combined_height=260)
     """Reads a unit's own log file back, filtered to the current run, and
     builds the live trend views generate_run_report() produces for a
     finished run - but on whatever rows exist so far. Returns
-    (strips_html, combined_html), each "" if the log isn't there yet or has
-    fewer than 2 rows for this run (a single point can't show a trend, and
-    the very first cycle of a fresh run hits this every time).
+    (strips_html, combined_html, separate_html), each "" if the log isn't
+    there yet or has fewer than 2 rows for this run (a single point can't
+    show a trend, and the very first cycle of a fresh run hits this every
+    time).
 
     strips_html: the categorical reachable/Seek/image.pgm pass-fail strips
     - only meaningful on the per-unit detail page, not compact enough for
@@ -316,9 +328,13 @@ def _unit_trend_htmls(log_path, run_id, combined_width=760, combined_height=260)
 
     combined_html: every trended numeric stat (see _TRENDED_METRICS) on one
     shared chart, independently normalized so unlike scales (CPU %, CPU
-    Temp in C, event counts, uptime in hours) can share an axis - used by
-    both the overview's small per-unit graph and the bigger one on the
-    detail page, just at different sizes."""
+    Temp in C, event counts) can share an axis - compact enough for the
+    overview grid's 4-up layout.
+
+    separate_html: the same stats, but one real-units chart per stat - used
+    on the per-unit detail page, which has room for it and doesn't need the
+    normalization tradeoff (real y-axis values, no "hover to see the actual
+    number" indirection)."""
     try:
         wb = openpyxl.load_workbook(log_path, read_only=True, data_only=True)
         ws = wb.active
@@ -335,9 +351,9 @@ def _unit_trend_htmls(log_path, run_id, combined_width=760, combined_height=260)
         # BadZipFile isn't an OSError/KeyError/ValueError/StopIteration. This
         # chart is always best-effort - any read failure here should just
         # skip this cycle's trend, never take down the test itself.
-        return "", ""
+        return "", "", ""
     if len(rows) < 2:
-        return "", ""
+        return "", "", ""
 
     timestamp_idx = header.index("Timestamp")
     reachable_col = header.index("Reachable at checkpoint")
@@ -380,7 +396,13 @@ def _unit_trend_htmls(log_path, run_id, combined_width=760, combined_height=260)
         "All stats (each line normalized 0-100% of its own range - hover a point for the real value)",
         timestamps, series, width=combined_width, height=combined_height,
     )
-    return strips_html, combined_html
+
+    separate_html = "\n".join(
+        _svg_line_chart(name, timestamps, numeric_series(name), color, zero_floor=zero_floor)
+        for name, color, zero_floor in _TRENDED_METRICS
+    )
+
+    return strips_html, combined_html, separate_html
 
 
 _DASHBOARD_CSS = '''
@@ -431,10 +453,10 @@ def render_unit_detail(snapshot):
     status_class = "ok" if (reachable_ok and (not status_text or status_text == "PIPELINE HEALTHY")) else "bad"
     img_class = "ok" if s.get("image_healthy") else "bad"
 
-    strips, combined = "", ""
+    strips, separate = "", ""
     if s.get("log_path") and s.get("run_id"):
-        strips, combined = _unit_trend_htmls(s["log_path"], s["run_id"])
-    charts = (strips + "\n" + combined) if (strips or combined) else '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'
+        strips, _, separate = _unit_trend_htmls(s["log_path"], s["run_id"])
+    charts = (strips + "\n" + separate) if (strips or separate) else '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'
 
     html = f'''<!doctype html>
 <html>
@@ -452,7 +474,7 @@ def render_unit_detail(snapshot):
   <dt>Pipeline</dt><dd>{_esc(s.get("pipeline"))}</dd>
   <dt>Action</dt><dd>{_esc(s.get("action"))}</dd>
   <dt>Cycle</dt><dd>{_esc(s.get("cycle"))}</dd>
-  <dt>Last Update</dt><dd>{_esc(s.get("timestamp"))}</dd>
+  <dt>Last Update</dt><dd>{_esc(_fmt_snapshot_ts(s.get("timestamp")))}</dd>
   <dt>Reachable</dt><dd class="{'ok' if reachable_ok else 'bad'}">{"Yes" if reachable_ok else "No"}</dd>
   <dt>Seek Enum</dt><dd class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{_esc(s.get("seek_enumeration"))}</dd>
   <dt>image.pgm</dt><dd class="{img_class}">{_esc(s.get("image_desc"))}</dd>
@@ -461,6 +483,7 @@ def render_unit_detail(snapshot):
   <dt>Wrapper Alive</dt><dd>{_esc(s.get("wrapper_alive"))}</dd>
   <dt>CPU %</dt><dd>{_esc(s.get("cpu_pct"))}%</dd>
   <dt>CPU Temp</dt><dd>{_esc(s.get("cpu_temp"))}&deg;C</dd>
+  <dt>Uptime</dt><dd>{_esc(s.get("uptime_hours"))}h</dd>
   <dt>Throttled</dt><dd>{_esc(s.get("throttled_meaning"))}</dd>
   <dt>Status</dt><dd class="{status_class}">{_esc(status_text)}</dd>
 </dl>
@@ -508,7 +531,7 @@ def render_dashboard():
 
         combined = ""
         if s.get("log_path") and s.get("run_id"):
-            _, combined = _unit_trend_htmls(s["log_path"], s["run_id"], combined_width=560, combined_height=190)
+            _, combined, _ = _unit_trend_htmls(s["log_path"], s["run_id"], combined_width=560, combined_height=190)
         if not combined:
             combined = '<p class="empty">Not enough cycles yet for a trend (need at least 2).</p>'
 
@@ -521,6 +544,7 @@ def render_dashboard():
     <span>Seek <b class="{'ok' if s.get('seek_enumeration') == 'OK' else 'bad'}">{_esc(s.get("seek_enumeration"))}</b></span>
     <span>image.pgm <b class="{img_class}">{"OK" if s.get("image_healthy") else "BAD"}</b></span>
     <span>CPU <b>{_esc(s.get("cpu_pct"))}%</b> / <b>{_esc(s.get("cpu_temp"))}&deg;C</b></span>
+    <span>Uptime <b>{_esc(s.get("uptime_hours"))}h</b></span>
     <span class="{status_class}">{_esc(status_text)}</span>
   </div>
   {combined}
