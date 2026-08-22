@@ -476,7 +476,7 @@ def render_unit_detail(snapshot):
 <html>
 <head>
 <meta charset="utf-8">
-<title>{_esc(s.get("unit"))} - Pipeline Test</title>
+<title>{_esc(s.get("unit"))} - Test 0 Pipeline Monitoring</title>
 <style>{_DASHBOARD_CSS}</style>
 </head>
 <body>
@@ -554,11 +554,11 @@ def render_dashboard():
 <html>
 <head>
 <meta charset="utf-8">
-<title>Pipeline Test - Live Status</title>
+<title>Test 0 Pipeline Monitoring - Live Status</title>
 <style>{_DASHBOARD_CSS}</style>
 </head>
 <body>
-<h1>Pipeline Test - Live Status</h1>
+<h1>Test 0 Pipeline Monitoring - Live Status</h1>
 <div class="updated">Rewritten fresh every cycle by whichever unit finishes next - reload this page (F5) to see the latest. Click a unit for its full detail page. Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.</div>
 {'<p class="empty">No status snapshots yet - waiting for the first cycle to complete.</p>' if not snapshots else f'<div class="grid">{cells_html}</div>'}
 </body>
