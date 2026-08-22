@@ -407,10 +407,21 @@ def run_cycle(run_id, cycle_num, ip, user, password, unit_label, action, pipelin
     snapshot = write_status_snapshot(unit_label, ip, pipeline, action, run_id, cycle_num, reachable, fields, log_path)
     # Reloaded fresh every cycle so an edit to dashboard_render.py (HTML/CSS/
     # layout) takes effect on the very next cycle - no need to restart this
-    # long-running process just to pick up a display-only change.
-    importlib.reload(dashboard_render)
-    dashboard_render.render_unit_detail(snapshot)
-    dashboard_render.render_dashboard()
+    # long-running process just to pick up a display-only change. But that
+    # means a bug in dashboard_render.py - including a broken mid-edit save,
+    # since this reload can land at any moment relative to someone editing
+    # the file live - reaches this long-running process directly. The real
+    # test (the log row and JSON snapshot above) is already safely on disk
+    # by this point, so a dashboard failure must never be allowed to kill
+    # the unit's whole multi-day run - same principle as run_check()'s own
+    # try/except a few lines up: a broken *view* of the data is not a
+    # reason to stop *collecting* it.
+    try:
+        importlib.reload(dashboard_render)
+        dashboard_render.render_unit_detail(snapshot)
+        dashboard_render.render_dashboard()
+    except Exception as e:
+        print(f"  dashboard render failed this cycle (test data was still logged fine): {type(e).__name__}: {e}")
 
     # pad to the nominal total cycle length before the next action fires - uses
     # the real elapsed time for this cycle (not a guess), so cadence stays
