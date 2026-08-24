@@ -1,6 +1,6 @@
 # New vs. Old Pipeline Test Plan
-rev3
-8/21/26
+rev4
+8/22/26
 
 ## Purpose for this test: 
 To find a solution for the cameras at LB and HyCO4 that have been experiencing IR Video Pipeline Failures. These failures include a frozen video pipeline and seek cameras not being able to enumerate. Frozen video pipeline can occur during boot and or during runtime. 
@@ -85,6 +85,8 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 | PT0.1NEW | new (`seekcamera-gstreamer`) | Type B | 5 min |
 | PT0.2 | old (`rtsp-seek-server`) | Type A | 5 min | 
 | PT0.2NEW | new (`seekcamera-gstreamer`) | Type B | 5 min |
+| PT0.3 | old (`rtsp-seek-server`) | Type A | 5 min | 
+| PT0.3NEW | new (`seekcamera-gstreamer`) | Type B | 5 min |
 
 - All units have the same Power input
     - PoE Splitter (5V 3.5A) because I have qty 4 of each.
@@ -114,6 +116,7 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 2. Does the old/new pipeline fail, what is causing the failure and how can that be eliminated ?
 3. Any difference in Seek enumeration failures between pipelines?
 4. Any other faults/bugs, in either pipeline
+5. Are there performances differences in the test units with suspected bad PoETaps (5V 2.4A)?
 
 ### Prediction: 
 - if the new pipeline is better, it should show fewer/delayed Seek enumeration failures.
