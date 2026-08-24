@@ -88,10 +88,14 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
 | PT0.3 | old (`rtsp-seek-server`) | Type A | 5 min | 
 | PT0.3NEW | new (`seekcamera-gstreamer`) | Type B | 5 min |
 
-- All units have the same Power input
+- PT0.1 / PT0.2 / PT0.1NEW / PT0.2NEW units have the same Power input
     - PoE Splitter (5V 3.5A) because I have qty 4 of each.
     - STEAMO Model:GPOE208 Gigabit PoE Switch
-    - The same ethernet cables
+    - 3' ethernet cables (same brand)
+PT0.3 / PT0.3NEW units have the same Power input
+    - PoE Splitter (5V 2.5A) - the suspected BAD ones pulled from LB
+    - STEAMO Model:GPOE208 Gigabit PoE Switch
+    - 6'' ethernet cables (same brand)
 - All units are burned with the same baseline OS image
     - changes are that TYPE B has the new pipeline ( binaries and services newSDK ) the old pipeline is there but not active
 
