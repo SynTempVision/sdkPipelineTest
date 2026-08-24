@@ -92,7 +92,7 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
     - PoE Splitter (5V 3.5A) because I have qty 4 of each.
     - STEAMO Model:GPOE208 Gigabit PoE Switch
     - 3' ethernet cables (same brand)
-PT0.3 / PT0.3NEW units have the same Power input
+- PT0.3 / PT0.3NEW units have the same Power input
     - PoE Splitter (5V 2.5A) - the suspected BAD ones pulled from LB
     - STEAMO Model:GPOE208 Gigabit PoE Switch
     - 6'' ethernet cables (same brand)
