@@ -143,7 +143,7 @@ Options:
 5. Thermal Stress
 
 | Unit/Test# | Pipeline | Type | Stress Action | Logging Cycle 
-|---|---|---|---|
+|---|---|---|---|---|
 | PT1.1 | old (`rtsp-seek-server`) | Type A | ? | 2 min | 
 | PT1.1NEW | new (`seekcamera-gstreamer`) | Type B | ? | 2 min |
 | PT1.2 | old (`rtsp-seek-server`) | Type A | ? | 60 sec |
