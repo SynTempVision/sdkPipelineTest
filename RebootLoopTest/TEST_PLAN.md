@@ -64,7 +64,7 @@ Role: Buffering/threading boundary between the SDK callback thread and
 the rest of the pipeline
 ────────────────────────────────────────
 Element: calibration
-Role: Applies the per-camera calibration (slope/offset fromcamera_imager) — this is the custom element read once at pipeline start (gst_calibration_start())
+Role: Applies the per-camera calibration (slope/offset from camera_imager) — this is the custom element read once at pipeline start (gst_calibration_start())
 ────────────────────────────────────────
 Element: pgmencode
 Role: Encodes the calibrated frame into PGM format
@@ -97,7 +97,7 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
     - STEAMO Model:GPOE208 Gigabit PoE Switch
     - 6'' ethernet cables (same brand)
 - All units are burned with the same baseline OS image
-    - changes are that TYPE B has the new pipeline ( binaries and services newSDK ) the old pipeline is there but not active
+    - changes: TYPE B has the new pipeline ( binaries and services newSDK ) the old pipeline is there but not active
 
 ### Instruments that are logged on a N cycle time for N amount of days
 - Both pipelines:
@@ -133,20 +133,35 @@ Steady-state endurance.** Leave each pipeline running normally, with no delibera
    - Build a website that displays the static information about each test device and the current status of test device during a test run.
 
 ## Future Test 1 Design:
-Two stress conditions, each run on one old-pipeline unit and one new-pipeline unit in parallel:
+Stress conditions, each run on one old-pipeline unit and one new-pipeline unit in parallel:
 
-| Unit | Pipeline | Stress action | Cycle 
+Options:
+1. USB bus reset while streaming (usbreset or unbind/rebind via sysfs /sys/bus/usb/drivers/usb/unbind)
+2. Rapid physical unplugs via relay
+3. Concurrent USB load
+4. CPU load ( color stream )
+5. Thermal Stress
+
+| Unit/Test# | Pipeline | Type | Stress Action | Logging Cycle 
 |---|---|---|---|
-| PT1 | old (`rtsp-seek-server`) | software reboot | 2 min | 
-| PT1NEW | new (`seekcamera-gstreamer`) | software reboot | 2 min |
-| PT2 | old (`rtsp-seek-server`) | pipeline restart | 60 sec |
-| PT2NEW | new (`seekcamera-gstreamer`) | pipeline restart | 60 sec |
+| PT1.1 | old (`rtsp-seek-server`) | Type A | ? | 2 min | 
+| PT1.1NEW | new (`seekcamera-gstreamer`) | Type B | ? | 2 min |
+| PT1.2 | old (`rtsp-seek-server`) | Type A | ? | 60 sec |
+| PT1.2NEW | new (`seekcamera-gstreamer`) | Type B | ? | 60 sec |
+| PT1.3 | old (`rtsp-seek-server`) | Type A | ? | 5 min | 
+| PT1.3NEW | new (`seekcamera-gstreamer`) | Type B | ? | 5 min |
 
-- All units have the same Power input
-    - (PoE Splitter 5V 3.5A OR 12V 2A) because I have qty 4 of each.
+- PT1.1 / PT1.2 / PT1.1NEW / PT1.2NEW units have the same Power input
+    - PoE Splitter (5V 3.5A) because I have qty 4 of each.
     - STEAMO Model:GPOE208 Gigabit PoE Switch
-    - The same ethernet cables
-- All units are burned with the same baseline OS image. 
+    - 3' ethernet cables (same brand)
+- PT1.3 / PT1.3NEW units have the same Power input
+    - PoE Splitter (5V 2.5A) - the suspected BAD ones pulled from LB
+    - STEAMO Model:GPOE208 Gigabit PoE Switch
+    - 6'' ethernet cables (same brand)
+- All units are burned with the same baseline OS image
+    - changes: TYPE B has the new pipeline ( binaries and services newSDK ) the old pipeline is there but not active
+ 
 
 ### Instruments that are logged on a N cycle time
 - Both pipelines:
